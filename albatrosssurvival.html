@@ -1,0 +1,4180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ALBATROSS - REAL FLIGHT | 22:1 Glide | Pitch Control | Flap Regen | JET STREAMS</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', monospace; background: #000; }
+        canvas { display: block; }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 100;
+            text-shadow: 1px 1px 0 #000;
+            font-weight: bold;
+        }
+        .panel {
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+            padding: 8px 18px;
+            border-radius: 32px;
+            border-left: 4px solid #88aaff;
+            color: #f0f0f0;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .flap-bar-bg {
+            width: 180px;
+            height: 14px;
+            background: #2a2a3a;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-top: 4px;
+            border: 1px solid #88aaff;
+        }
+        #flapFill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #66ccff, #aaffff);
+            transition: width 0.1s;
+        }
+        #instructions {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            background: rgba(0,0,0,0.85);
+            color: #ccddff;
+            padding: 12px 18px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-family: monospace;
+            pointer-events: none;
+            z-index: 200;
+            backdrop-filter: blur(4px);
+            max-width: 420px;
+            line-height: 1.6;
+        }
+        #flightMeter {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.85);
+            padding: 12px 20px;
+            border-radius: 30px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #aaffdd;
+            pointer-events: none;
+            text-align: right;
+            min-width: 220px;
+            backdrop-filter: blur(4px);
+            border-right: 3px solid #88aaff;
+        }
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1000;
+        }
+        .alt-meter {
+            position: absolute;
+            top: 90px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #ffaa66;
+            pointer-events: none;
+            font-weight: bold;
+        }
+        .takeoff-warning {
+            position: absolute;
+            bottom: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            color: #ffaa66;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-family: monospace;
+            font-size: 14px;
+            font-weight: bold;
+            pointer-events: none;
+            white-space: nowrap;
+            border: 1px solid #ffaa66;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 150;
+        }
+        #debugInfo {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            background: rgba(0,0,0,0.6);
+            color: #88ffaa;
+            font-family: monospace;
+            font-size: 10px;
+            padding: 4px 10px;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+
+
+        /* === INVENTORY UI === */
+        #hotbar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+            background: rgba(0,0,0,0.75);
+            padding: 8px 12px;
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            border: 2px solid #88aaff;
+            z-index: 250;
+        }
+        .slot {
+            width: 62px;
+            height: 62px;
+            background: rgba(30,30,40,0.95);
+            border: 3px solid #445566;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            position: relative;
+            cursor: grab;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+            transition: all 0.1s;
+        }
+        .slot:hover { border-color: #88aaff; }
+        .slot .count {
+            position: absolute;
+            bottom: 4px;
+            right: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 1px 1px 2px #000;
+        }
+        .slot.selected {
+            border-color: #aaffff;
+            box-shadow: 0 0 12px #aaffff;
+        }
+
+        #inventoryScreen {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10,12,20,0.96);
+            padding: 24px 30px;
+            border-radius: 20px;
+            box-shadow: 0 0 40px rgba(136,170,255,0.6);
+            z-index: 300;
+            border: 3px solid #88aaff;
+            max-width: 620px;
+        }
+        #inventoryGrid {
+            display: grid;
+            grid-template-columns: repeat(9, 62px);
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+<div id="ui">
+    <div class="panel">🕊️ ALBATROSS FLIGHT SIM</div>
+    <div class="panel" style="border-left: 4px solid #aaffff;">
+        🪶 GLIDE <span id="glideRatioDisplay">22.0</span>:1
+    </div>
+
+    <!-- NEW HEALTH BAR -->
+    <div class="panel" style="border-left: 4px solid #ff5555;">
+        ❤️ HEALTH
+        <div style="width: 180px; height: 14px; background:#2a2a3a; border-radius:20px; overflow:hidden; margin-top:4px; border:1px solid #ff5555;">
+            <div id="healthFill" style="width:100%; height:100%; background:linear-gradient(90deg, #ff5555, #ffaa77); transition:width 0.3s;"></div>
+        </div>
+        <span id="healthText">150 / 150</span>
+    </div>
+
+    <div class="panel">🪶 FLAPS <div class="flap-bar-bg"><div id="flapFill"></div></div><span id="flapCount">9</span></div>
+    <div class="panel">🌍 <span id="biomeTag">MEADOW</span> &nbsp;| 🔥 <span id="thermalValue">NONE</span></div>
+</div>
+
+<div id="instructions">
+    🖱️ CLICK to lock mouse | MOUSE = PITCH + YAW<br>
+    WASD = steer | SPACE = glide + flap regen<br>
+    F = use flap (must select 🪶) | J = jet boost (must select 🧨)<br>
+    1-9 = select hotbar | B = open backpack
+</div>
+
+<div id="flightMeter">
+    🕊️ STATUS: <span id="flightStatus" style="color:#ffff88">GROUNDED</span><br>
+    🌀 SPEED: <span id="speedValue">0</span> km/h<br>
+    📈 VERTICAL: <span id="vertSpeed">0.0</span> m/s<br>
+    🪶 FLAPS: <span id="flapCountDisplay">9</span><br>
+    🧨 JET: <span id="jetCountDisplay">64</span><br>
+    📐 PITCH: <span id="pitchAngle">0</span>°
+</div>
+
+<div class="alt-meter" id="altDisplay">⬆️ ALT: 0 m</div>
+<div class="takeoff-warning" id="takeoffWarning">🏃‍♂️ RUN TO 28 KM/H TO TAKE OFF! HOLD W + SPACE 🏃‍♂️</div>
+<div class="crosshair"></div>
+<div id="debugInfo">🌍 WORLD LOADING...</div>
+
+<!-- HOTBAR -->
+<div id="hotbar"></div>
+
+<!-- FULL BACKPACK -->
+<div id="inventoryScreen">
+    <div style="margin-bottom:12px; text-align:center; color:#ccddff; font-size:22px; font-weight:bold;">🧳 BACKPACK</div>
+    <div id="inventoryGrid"></div>
+    <div style="margin-top:22px; text-align:center; color:#88aaff; font-size:12px;">
+        Drag items to rearrange • Hotbar = 1-9 • B to close
+    </div>
+</div>
+<!-- IMPROVED 4x4 CRAFTING SCREEN -->
+<!-- CLEAN CRAFTING SCREEN -->
+<div id="craftingScreen" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(12,15,28,0.97); padding:40px 50px; border-radius:24px; box-shadow:0 0 80px rgba(136,170,255,0.8); z-index:400; border:4px solid #88aaff; color:#f0f0f0; max-width:520px; text-align:center;">
+
+    <div style="font-size:28px; margin-bottom:25px; color:#aaffdd;">🪹 NEST FORGE - CRAFTING</div>
+
+    <div id="recipesList" style="display:flex; flex-direction:column; gap:16px; min-height:120px;"></div>
+
+    <div style="margin-top:30px; color:#7799cc; font-size:13px;">
+        Click a recipe to craft automatically • Press <b>C</b> to close
+    </div>
+</div>
+
+
+
+<script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.168.0/build/three.module.js" } }
+</script>
+<script type="module">
+    import * as THREE from 'three';
+
+
+    class PlaneAI_Cessna {
+  constructor(planeMesh, player, bombPrefab, scene) {
+    this.mesh = planeMesh;
+    this.player = player;
+    this.bombPrefab = bombPrefab;
+    this.scene = scene;
+
+    this.velocity = new THREE.Vector3(0, 0, 45);
+    this.mass = 1100;
+    this.gravity = 9.81;
+    this.airDensity = 1.225;
+    this.wingArea = 16.2;
+    this.maxThrust = 1200;
+    this.cruiseSpeed = 45;
+    this.stallSpeed = 20;
+    this.maxSpeed = 62;
+    this.dragCoefficient = 0.035;
+    this.liftCoefficientMax = 1.4;
+    this.stallAoA = 15;
+
+    this.currentBombs = 64;
+    this.fuelSeconds = 240;
+    this.engineHealth = 100;
+    this.propellerHealth = 100;
+    this.wingHealth = 100;
+    this.engineRunning = true;
+    this.throttle = 1.0;
+    this.isPropellerImbalanced = false;
+    this.imbalanceSeverity = 0;
+    this.wingsBroken = false;
+    this.crashed = false;
+
+    this.adaptation = {
+      threatLevel: 0.0,
+      playerSkill: 0.0,
+      aggressionScore: 0.0,
+      attacksOnEngine: 0,
+      attacksOnProp: 0,
+      attacksOnWings: 0,
+      totalDamageTaken: 0,
+      lastPlayerDistance: 999,
+      lastAdaptTime: 0,
+      adaptationInterval: 6.0,
+      chargeDistance: 60,
+      bombRateMultiplier: 1.0,
+      errorRateMultiplier: 1.0,
+      turnAggression: 2.8,
+      patrolHeightBonus: 0,
+      wakeStrengthMultiplier: 1.0,
+      attentionHeads: {
+        threatHead: { weight: 0.0 },
+        damageHead: { weight: 0.0 }
+      }
+    };
+
+    this.behaviorMode = 'patrol';
+    this.lastBehaviorSwitch = 0;
+    this.lastErrorTime = 0;
+    this.errorInterval = 15;
+    this.errorDuration = 0;
+    this.currentError = null;
+    this.airbrakesDeployed = false;
+    this.airbrakesEndTime = 0;
+    this.airbrakesChancePerSecond = 0.009;
+    this.bombDropInterval = 1.05;
+    this.bombingRange = 85;
+    this.minDropAltitude = 35;
+    this.nextBombTime = Date.now();
+    this.wakeTrail = [];
+    this.lastWakeTime = 0;
+    this.wakeEmitInterval = 0.12;
+    this.wakeLifetime = 13;
+    this.smokeParticles = [];
+    this.smokeMaterial = new THREE.MeshBasicMaterial({ color: 0x555555, transparent: true, opacity: 0.75, depthWrite: false });
+    this.lastSmokeTime = 0;
+    this.smokeEmitInterval = 0.07;
+    this.pilotEjected = false;
+    this.pilot = null;
+    this.explosionParticles = [];
+    this.explosionMaterial = new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.9 });
+  }
+
+  update(deltaTime) {
+    if (this.crashed || !this.player) return;
+    const now = Date.now() / 1000;
+    const distToPlayer = this.mesh.position.distanceTo(this.player.position);
+
+    this.adaptToPlayer(now, distToPlayer, deltaTime);
+
+    if (distToPlayer < this.adaptation.chargeDistance && this.behaviorMode !== 'charge') {
+      this.behaviorMode = 'charge';
+    }
+    if (distToPlayer > this.adaptation.chargeDistance + 30 && this.behaviorMode === 'charge') {
+      this.behaviorMode = 'patrol';
+    }
+
+    this.handleFuelAndEngine(deltaTime);
+    this.checkForAccidentalAirbrakes(deltaTime, now);
+    this.pilotErrorCheck(now);
+
+    if (!this.pilotEjected && this.engineHealth <= 18) {
+      this.checkLowHealthEject();
+    }
+
+    this.updateDamageSmoke(deltaTime, now);
+
+    if (this.engineRunning) {
+      this.flyTowardsPlayer(deltaTime, distToPlayer);
+      this.tryDropBomb(now);
+    } else {
+      this.plummet(deltaTime);
+    }
+
+    this.applyAerodynamics(deltaTime);
+    this.applyPropellerImbalance(deltaTime);
+    this.applyWingDamageEffects(deltaTime);
+    this.applyBanking(deltaTime);
+    this.updatePosition(deltaTime);
+    this.emitAndApplyWakeTurbulence(deltaTime, now, this.behaviorMode === 'charge');
+    this.updateSmokeParticles(deltaTime);
+    this.updatePilotEject(deltaTime);
+    this.checkPlayerCollision();
+    this.checkGroundCollision();
+  }
+
+  adaptToPlayer(now, distToPlayer, deltaTime) {
+    if (now - this.adaptation.lastAdaptTime < this.adaptation.adaptationInterval) return;
+    this.adaptation.lastAdaptTime = now;
+
+    const distanceDelta = this.adaptation.lastPlayerDistance - distToPlayer;
+    const threatAttention = Math.min(1.0, Math.max(0.0, (distanceDelta > 8 ? 1.0 : 0.0) * 0.6 + (distToPlayer < 80 ? 0.4 : 0.0)));
+    this.adaptation.attentionHeads.threatHead.weight = THREE.MathUtils.lerp(this.adaptation.attentionHeads.threatHead.weight, threatAttention, 0.4);
+
+    const totalAttacks = this.adaptation.attacksOnEngine + this.adaptation.attacksOnProp + this.adaptation.attacksOnWings;
+    let damageFocus = 0;
+    if (totalAttacks > 0) damageFocus = Math.min(1.0, (this.adaptation.attacksOnProp / totalAttacks) * 0.5 + (this.adaptation.attacksOnWings / totalAttacks) * 0.3 + (this.adaptation.attacksOnEngine / totalAttacks) * 0.2);
+    this.adaptation.attentionHeads.damageHead.weight = THREE.MathUtils.lerp(this.adaptation.attentionHeads.damageHead.weight, damageFocus, 0.35);
+
+    this.adaptation.threatLevel = (this.adaptation.attentionHeads.threatHead.weight * 0.65 + this.adaptation.attentionHeads.damageHead.weight * 0.35);
+    this.adaptation.playerSkill = Math.min(1.0, totalAttacks / 12);
+    this.adaptation.aggressionScore = THREE.MathUtils.lerp(this.adaptation.aggressionScore, distanceDelta > 8 ? 1 : 0, 0.3);
+    this.adaptation.lastPlayerDistance = distToPlayer;
+
+    this.adaptation.chargeDistance = 60 - (this.adaptation.threatLevel * 25);
+    this.adaptation.bombRateMultiplier = 1 + (this.adaptation.threatLevel * 0.9);
+    this.adaptation.errorRateMultiplier = Math.max(0.4, 1 - (this.adaptation.threatLevel * 0.6));
+    this.adaptation.turnAggression = 2.8 + (this.adaptation.threatLevel * 2.2);
+    this.adaptation.patrolHeightBonus = this.adaptation.threatLevel * 35;
+    this.adaptation.wakeStrengthMultiplier = 1 + (this.adaptation.threatLevel * 1.3);
+  }
+
+  handleFuelAndEngine(deltaTime) {
+    if (!this.engineRunning) return;
+    this.fuelSeconds -= deltaTime;
+    if (this.fuelSeconds <= 0 || this.engineHealth <= 0) this.engineRunning = false;
+    this.throttle = Math.max(0.15, this.engineHealth / 100);
+  }
+
+  checkForAccidentalAirbrakes(deltaTime, now) {
+    if (this.airbrakesDeployed) {
+      if (now > this.airbrakesEndTime) this.airbrakesDeployed = false;
+      return;
+    }
+    if (Math.random() < this.airbrakesChancePerSecond * deltaTime * 60) {
+      this.airbrakesDeployed = true;
+      this.airbrakesEndTime = now + (1.8 + Math.random() * 3.5);
+    }
+  }
+
+  pilotErrorCheck(now) {
+    const damageFactor = (1 - this.engineHealth / 100) + (this.isPropellerImbalanced ? 0.7 : 0) + (this.wingsBroken ? 0.9 : 0);
+    const interval = this.errorInterval * this.adaptation.errorRateMultiplier * (1 - damageFactor * 0.75);
+    if (now - this.lastErrorTime > interval && this.errorDuration <= 0) {
+      const roll = Math.random();
+      if (roll < 0.15) this.currentError = "pitchDown";
+      else if (roll < 0.3) this.currentError = "bankLeft";
+      else if (roll < 0.45) this.currentError = "throttleCut";
+      else if (roll < 0.58) this.currentError = "yawWobble";
+      else if (roll < 0.7) this.currentError = "randomRoll";
+      else if (roll < 0.8) this.currentError = "flapsDeploy";
+      else if (roll < 0.9) this.currentError = "engineCough";
+      else this.currentError = "overCorrect";
+      this.errorDuration = 1.0 + Math.random() * 3.2;
+      this.lastErrorTime = now;
+    }
+    if (this.errorDuration > 0) this.errorDuration -= deltaTime;
+    else this.currentError = null;
+  }
+
+  flyTowardsPlayer(deltaTime, distToPlayer) {
+    const toPlayer = new THREE.Vector3().subVectors(this.player.position, this.mesh.position);
+    const forward = new THREE.Vector3();
+    this.mesh.getWorldDirection(forward);
+    let targetPos = this.player.position.clone();
+
+    if (this.behaviorMode === 'patrol') {
+      const time = Date.now() / 1000;
+      const orbitRadius = 130;
+      const offset = new THREE.Vector3(
+        Math.cos(time * 0.35) * orbitRadius,
+        25 + Math.sin(time * 0.6) * 15 + this.adaptation.patrolHeightBonus,
+        Math.sin(time * 0.35) * orbitRadius
+      );
+      targetPos.add(offset);
+    } else {
+      targetPos.y -= 18;
+    }
+
+    const targetRotation = new THREE.Quaternion().setFromRotationMatrix(
+      new THREE.Matrix4().lookAt(this.mesh.position, targetPos, new THREE.Vector3(0, 1, 0))
+    );
+    let slerp = this.adaptation.turnAggression;
+    if (this.currentError === "pitchDown") slerp = 1.1;
+    if (this.currentError === "bankLeft") slerp = 5.0;
+    if (this.currentError === "overCorrect") slerp = 7 + Math.random() * 3;
+    this.mesh.quaternion.slerp(targetRotation, slerp * deltaTime);
+
+    let targetThrottle = this.behaviorMode === 'charge' ? 1.15 : (distToPlayer > 150 ? 1.0 : 0.7);
+    if (this.currentError === "throttleCut") targetThrottle = 0.08;
+    if (this.currentError === "engineCough") targetThrottle *= (0.4 + Math.random() * 0.8);
+    this.throttle = THREE.MathUtils.lerp(this.throttle, targetThrottle, 6 * deltaTime);
+
+    const thrust = forward.clone().multiplyScalar(this.maxThrust * this.throttle);
+    this.velocity.add(thrust.multiplyScalar(deltaTime / this.mass));
+  }
+
+  applyAerodynamics(deltaTime) {
+    const forward = new THREE.Vector3();
+    this.mesh.getWorldDirection(forward);
+    const speed = this.velocity.length();
+    if (speed < 0.1) return;
+
+    const aoaRad = this.velocity.angleTo(forward);
+    const aoaDeg = THREE.MathUtils.radToDeg(aoaRad);
+    const signedAoA = forward.dot(this.velocity) > 0 ? aoaDeg : -aoaDeg;
+
+    let cl = this.liftCoefficientMax * Math.sin(2 * THREE.MathUtils.degToRad(signedAoA));
+    if (Math.abs(signedAoA) > this.stallAoA) cl *= 0.35;
+    if (this.wingsBroken) cl *= 0.38;
+
+    const dynamicPressure = 0.5 * this.airDensity * speed * speed;
+    let liftMag = dynamicPressure * this.wingArea * cl;
+    if (this.airbrakesDeployed) liftMag *= 0.4;
+
+    const liftDir = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+    liftDir.cross(forward);
+    const liftForce = liftDir.multiplyScalar(liftMag);
+
+    let dragMult = this.dragCoefficient * (1 + 0.12 * Math.abs(signedAoA));
+    if (this.airbrakesDeployed || this.currentError === "flapsDeploy") dragMult *= 3.8;
+    if (this.wingsBroken) dragMult *= 1.6;
+
+    const dragForce = this.velocity.clone().normalize().multiplyScalar(-dynamicPressure * this.wingArea * dragMult);
+    const gravityForce = new THREE.Vector3(0, -this.gravity * this.mass, 0);
+    const total = liftForce.add(dragForce).add(gravityForce);
+    this.velocity.add(total.multiplyScalar(deltaTime / this.mass));
+
+    if (speed > this.maxSpeed) this.velocity.multiplyScalar(0.95);
+    if (speed < this.stallSpeed && Math.abs(signedAoA) > 12) this.velocity.y -= 22 * deltaTime;
+  }
+
+  applyPropellerImbalance(deltaTime) {
+    if (!this.isPropellerImbalanced) return;
+    const shake = Math.sin(Date.now() / 22) * this.imbalanceSeverity * 28;
+    this.velocity.x += (Math.random() - 0.5) * shake * deltaTime * 2;
+    this.velocity.z += (Math.random() - 0.5) * shake * deltaTime * 2;
+  }
+
+  applyWingDamageEffects(deltaTime) {
+    if (!this.wingsBroken) return;
+    const euler = new THREE.Euler().setFromQuaternion(this.mesh.quaternion, 'YXZ');
+    euler.z += (Math.random() - 0.5) * 1.8 * deltaTime;
+    euler.x += Math.sin(Date.now() / 120) * 0.6 * deltaTime;
+    this.mesh.quaternion.setFromEuler(euler);
+  }
+
+  applyBanking(deltaTime) {
+    const forward = new THREE.Vector3();
+    this.mesh.getWorldDirection(forward);
+    const toPlayerFlat = new THREE.Vector3(this.player.position.x, 0, this.player.position.z)
+      .sub(new THREE.Vector3(this.mesh.position.x, 0, this.mesh.position.z))
+      .normalize();
+    const horizontalCross = new THREE.Vector3().crossVectors(
+      new THREE.Vector3(forward.x, 0, forward.z).normalize(), toPlayerFlat
+    );
+    let turnRate = forward.angleTo(toPlayerFlat) * (horizontalCross.y > 0 ? 1 : -1);
+    if (this.currentError === "bankLeft") turnRate -= 1.8;
+    if (this.currentError === "randomRoll") turnRate += (Math.random() - 0.5) * 4;
+
+    let targetBankDeg = turnRate * 52 * (this.isPropellerImbalanced ? 1.6 : 1);
+    targetBankDeg = THREE.MathUtils.clamp(targetBankDeg, -68, 68);
+
+    const currentEuler = new THREE.Euler().setFromQuaternion(this.mesh.quaternion, 'YXZ');
+    currentEuler.z = THREE.MathUtils.lerp(currentEuler.z, THREE.MathUtils.degToRad(targetBankDeg), 7 * deltaTime);
+    this.mesh.quaternion.setFromEuler(currentEuler);
+  }
+
+  plummet(deltaTime) {
+    const drag = this.velocity.clone().multiplyScalar(-1.1);
+    this.velocity.add(drag.multiplyScalar(deltaTime));
+    this.velocity.y -= this.gravity * 2.2 * deltaTime;
+  }
+
+  tryDropBomb(now) {
+    if (this.currentBombs <= 0 || now < this.nextBombTime) return;
+    const distance = this.mesh.position.distanceTo(this.player.position);
+    if (distance > this.bombingRange || this.mesh.position.y < this.minDropAltitude) return;
+
+    const forward = new THREE.Vector3();
+    this.mesh.getWorldDirection(forward);
+    const toPlayer = new THREE.Vector3().subVectors(this.player.position, this.mesh.position).normalize();
+    if (forward.dot(toPlayer) < 0.65) return;
+
+    const bomb = this.bombPrefab ? this.bombPrefab.clone() : new THREE.Mesh(new THREE.SphereGeometry(1.4, 8, 8), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+    bomb.position.copy(this.mesh.position).add(new THREE.Vector3(0, -2.2, 1.2).applyQuaternion(this.mesh.quaternion));
+    bomb.userData = { velocity: this.velocity.clone().add(forward.multiplyScalar(8)), life: 12 };
+    this.scene.add(bomb);
+    this.currentBombs--;
+    this.nextBombTime = now + (this.bombDropInterval / this.adaptation.bombRateMultiplier);
+  }
+
+  emitAndApplyWakeTurbulence(deltaTime, now, isCharging) {
+    if (now - this.lastWakeTime > this.wakeEmitInterval) {
+      this.wakeTrail.push({ position: this.mesh.position.clone(), strength: this.engineRunning ? 1.0 : 0.3, age: 0 });
+      this.lastWakeTime = now;
+    }
+    for (let i = this.wakeTrail.length - 1; i >= 0; i--) {
+      const w = this.wakeTrail[i];
+      w.age += deltaTime;
+      if (w.age > this.wakeLifetime) this.wakeTrail.splice(i, 1);
+    }
+  }
+
+  updateDamageSmoke(deltaTime, now) {
+    if (now - this.lastSmokeTime < this.smokeEmitInterval) return;
+    this.lastSmokeTime = now;
+    const damageLevel = (100 - this.engineHealth) * 0.01 + (100 - this.propellerHealth) * 0.015;
+    if (damageLevel < 0.1) return;
+    const emitCount = this.isPropellerImbalanced ? 5 : 2;
+    const engineOffset = new THREE.Vector3(2.8, 0.6, 0);
+    const smokePos = this.mesh.position.clone().add(engineOffset.applyQuaternion(this.mesh.quaternion));
+    for (let i = 0; i < emitCount; i++) {
+      const size = 0.6 + Math.random() * 1.4;
+      const smoke = new THREE.Mesh(new THREE.SphereGeometry(size, 5, 5), this.smokeMaterial.clone());
+      smoke.position.copy(smokePos);
+      smoke.userData = { velocity: this.velocity.clone().multiplyScalar(0.3).add(new THREE.Vector3((Math.random()-0.5)*6, 8 + Math.random()*12, (Math.random()-0.5)*6)), life: 4.5 + Math.random() * 3, fade: 0.75 };
+      this.scene.add(smoke);
+      this.smokeParticles.push(smoke);
+    }
+  }
+
+  updateSmokeParticles(deltaTime) {
+    for (let i = this.smokeParticles.length - 1; i >= 0; i--) {
+      const p = this.smokeParticles[i];
+      p.userData.life -= deltaTime;
+      if (p.userData.life <= 0) {
+        this.scene.remove(p);
+        this.smokeParticles.splice(i, 1);
+        continue;
+      }
+      p.position.addScaledVector(p.userData.velocity, deltaTime);
+      p.userData.velocity.y -= 4 * deltaTime;
+      p.userData.velocity.multiplyScalar(0.96);
+      p.material.opacity = p.userData.life / 6 * p.userData.fade;
+      p.scale.setScalar(p.userData.life / 4);
+    }
+  }
+
+  checkLowHealthEject() {
+    if (this.pilotEjected || this.crashed || this.engineHealth > 18) return;
+    this.pilotEjected = true;
+    this.engineRunning = false;
+  }
+
+  updatePilotEject(deltaTime) {
+    if (!this.pilot) return;
+  }
+
+  checkPlayerCollision() {
+    const dist = this.mesh.position.distanceTo(this.player.position);
+    if (dist > 7) return;
+    const combinedKmh = (this.velocity.length() + (this.player.velocity ? this.player.velocity.length() : 0)) * 3.6;
+    if (combinedKmh > 40) {
+      const damage = Math.max(1, Math.floor((combinedKmh - 40) / 2));
+      // Add your player damage here later
+      this.crashed = true;
+    }
+  }
+
+  checkGroundCollision() {
+    if (this.mesh.position.y > 2.8) return;
+    this.crashed = true;
+  }
+
+  updatePosition(deltaTime) {
+    this.mesh.position.addScaledVector(this.velocity, deltaTime);
+  }
+}
+
+    // ==================== REAL FLIGHT PHYSICS ====================
+    const FLIGHT = {
+        chunkSize: 150,
+        renderDist: 4,
+        waterLevel: 5.8,
+        gravity: -14.0,
+        flapForce: 12.5,
+        flapRegenRate: 0.22,
+        glideRatio: 22.0,
+        takeoffSpeed: 28,
+        groundAccel: 24,
+        maxAirSpeed: 200,
+        minAirSpeed: 14,
+        airDrag: 0.999,
+        thermalLift: 8.5,
+        alignmentStrength: 0.16,
+        jetBoostAccel: 9.8,
+        jetDuration: 5.0
+    };
+
+    // ==================== INVENTORY SYSTEM ====================
+    let playerHealth = 150;
+    const MAX_HEALTH = 150;
+    let planes = [];
+    let bombs = [];
+    let lastBombTime = 0;
+    let lastRegenTime = Date.now();
+    let inventory = Array(36).fill(null);
+    let selectedHotbar = 0;
+    let lastSpeedOnGround = 0;   // Used to detect hard landing
+    let cloudLayer = null;
+    let cloudPlatforms = [];   // for collision
+    let hasGlideEnchant = false;      // 100:1 glide
+    let hasDamageReduction = false;   // 20% damage taken
+    let hasFlapPower = false;         // 3G flap force
+    let reachedAetherMessageShown = false;
+    let screenShake = 0;
+    let planeAIs = [];
+    let hunterBaseBuilt = false;
+    let isInWater = false;
+    let waterSurfaceY = FLIGHT.waterLevel;
+    let swimVelocity = new THREE.Vector3();
+    let splashParticles = [];
+    let caves = []; // optional, for future updates
+    const ITEM_DB = {
+        flap:     { emoji: '🪶', maxStack: 64, color: '#66ccff' },
+        jet:      { emoji: '🧨', maxStack: 64, color: '#ffaa66' },
+        stone:    { emoji: '🥌', maxStack: 16, color: '#888888' },
+        wood:     { emoji: '🪵', maxStack: 64, color: '#d2a679' },
+        axe:      { emoji: '🪓', maxStack: 1, color: '#cccccc' },
+        iron:     { emoji: '⛏️', maxStack: 32, color: '#aa6644' },
+        tungsten: { emoji: '⚒️', maxStack: 16, color: '#7777ff' },
+        ironAxe:  { emoji: '🪓', maxStack: 1, color: '#ffcc88' },
+        tungAxe:  { emoji: '🪓', maxStack: 1, color: '#8888ff' },
+        spear:    { emoji: '🔱', maxStack: 1, color: '#99ccff' },
+        carbon:   { emoji: '⚫', maxStack: 64, color: '#222222' },
+        enchantment: { emoji: '✨', maxStack: 1, color: '#ff88ff' },
+        aetherium:   { emoji: '💎', maxStack: 32, color: '#88ffff' },
+        // New Iron Peaks items
+        jetFuel:  { emoji: '⛽', maxStack: 64, color: '#ff8800' },
+        carbide:  { emoji: '⚙️', maxStack: 16, color: '#555555' },
+        planePart:{ emoji: '✈️', maxStack: 8,  color: '#4488ff' },
+        skyMap:   { emoji: '🗺️', maxStack: 4,  color: '#ffdd44' }
+    };
+    // ==================== BASIC CRAFTING SYSTEM (Step 2) ====================
+// ==================== CLEAN AUTO-CRAFTING ====================
+let craftingOpen = false;
+
+const RECIPES = [
+    {
+        name: "Stone Axe",
+        emoji: "🪓",
+        result: { type: "axe", count: 1 },
+        ingredients: [
+            { type: "wood", count: 4, emoji: "🪵" },
+            { type: "stone", count: 2, emoji: "🥌" }
+        ]
+    },
+    {
+        name: "Iron Axe",
+        emoji: "🪓",
+        result: { type: "ironAxe", count: 1 },
+        ingredients: [
+            { type: "wood", count: 2, emoji: "🪵" },
+            { type: "stone", count: 1, emoji: "🥌" },
+            { type: "iron", count: 1, emoji: "⛏️" }
+        ]
+    },
+    {
+        name: "Tungsten Axe",
+        emoji: "🪓",
+        result: { type: "tungAxe", count: 1 },
+        ingredients: [
+            { type: "wood", count: 2, emoji: "🪵" },
+            { type: "tungsten", count: 1, emoji: "⚒️" }
+        ]
+    },
+    {
+        name: "Tungsten Spear",
+        emoji: "🔱",
+        result: { type: "spear", count: 1 },
+        ingredients: [
+            { type: "stone", count: 2, emoji: "🥌" },
+            { type: "tungsten", count: 1, emoji: "⚒️" }
+        ]
+    }
+];
+// Spawn Iron Ore - 4 per chunk
+// Generate caves inside a chunk
+
+
+// Generate realistic walkable caves in chunk
+function generateCavesInChunk(cx, cz) {
+    const worldOffsetX = cx * FLIGHT.chunkSize;
+    const worldOffsetZ = cz * FLIGHT.chunkSize;
+
+    const numCaveSystems = 1 + Math.floor(Math.random() * 3); // 1-3 cave systems per chunk
+
+    for (let i = 0; i < numCaveSystems; i++) {
+        const localX = (Math.random() - 0.5) * (FLIGHT.chunkSize * 0.75);
+        const localZ = (Math.random() - 0.5) * (FLIGHT.chunkSize * 0.75);
+
+        const worldX = worldOffsetX + localX;
+        const worldZ = worldOffsetZ + localZ;
+
+        const surfaceHeight = getTerrainHeightAndBiome(worldX, worldZ).height;
+
+        // Only generate if there's enough underground space
+        if (surfaceHeight > FLIGHT.waterLevel + 18) {
+            createRealisticCave(worldX, surfaceHeight - 6, worldZ, surfaceHeight);
+        }
+    }
+}
+
+// Create a proper walkable cave with entrance, tunnels and chambers
+function createRealisticCave(x, startY, z, surfaceHeight) {
+    const caveGroup = new THREE.Group();
+    const caveMat = new THREE.MeshStandardMaterial({
+        color: 0x445566,
+        roughness: 0.95,
+        metalness: 0.05
+    });
+
+    // Main entrance tunnel (sloping down from surface)
+    const entranceLength = 18 + Math.random() * 12;
+    for (let i = 0; i < entranceLength; i += 3) {
+        const progress = i / entranceLength;
+        const radius = 6 - progress * 2;
+
+        const section = new THREE.Mesh(
+            new THREE.CylinderGeometry(radius, radius - 0.5, 4, 8),
+            caveMat
+        );
+        section.rotation.x = Math.PI / 2;
+        section.position.set(
+            x + Math.sin(progress * 3) * 4,
+            startY - i * 0.9,
+            z + progress * 14
+        );
+        caveGroup.add(section);
+    }
+
+    // Main cave chamber (big open space)
+    const mainChamber = new THREE.Mesh(
+        new THREE.SphereGeometry(11 + Math.random() * 6, 9, 9),
+        caveMat
+    );
+    mainChamber.position.set(x + 8, startY - 22, z + 25);
+    caveGroup.add(mainChamber);
+
+    // Connecting tunnels
+    for (let t = 0; t < 3; t++) {
+        const tunnel = new THREE.Mesh(
+            new THREE.CylinderGeometry(5.5, 4.5, 28, 7),
+            caveMat
+        );
+        tunnel.rotation.set(
+            (Math.random() - 0.5) * 1.2,
+            Math.random() * Math.PI * 2,
+            (Math.random() - 0.5) * 0.8
+        );
+        tunnel.position.set(
+            x + (Math.random() - 0.5) * 18,
+            startY - 18 - Math.random() * 12,
+            z + (Math.random() - 0.5) * 22
+        );
+        caveGroup.add(tunnel);
+    }
+
+    // Smaller side chambers
+    for (let i = 0; i < 4; i++) {
+        const chamber = new THREE.Mesh(
+            new THREE.SphereGeometry(6 + Math.random() * 4, 8, 8),
+            caveMat
+        );
+        chamber.position.set(
+            x + (Math.random() - 0.5) * 26,
+            startY - 28 - Math.random() * 18,
+            z + (Math.random() - 0.5) * 28
+        );
+        caveGroup.add(chamber);
+    }
+
+    // Stalactites and stalagmites (for realism)
+    for (let i = 0; i < 25; i++) {
+        const stal = new THREE.Mesh(
+            new THREE.ConeGeometry(0.8 + Math.random() * 1.2, 6 + Math.random() * 8, 5),
+            caveMat
+        );
+        stal.position.set(
+            x + (Math.random() - 0.5) * 28,
+            startY - 15 - Math.random() * 22,
+            z + (Math.random() - 0.5) * 28
+        );
+        stal.rotation.set(Math.random() * 0.6, Math.random() * Math.PI * 2, Math.random() * 0.6);
+        caveGroup.add(stal);
+    }
+
+    scene.add(caveGroup);
+    return caveGroup;
+}
+function spawnIronOreInChunk(cx, cz) {
+    const key = `iron_${cx},${cz}`;
+    if (houseData.has(key)) return;
+
+    const worldOffsetX = cx * FLIGHT.chunkSize;
+    const worldOffsetZ = cz * FLIGHT.chunkSize;
+
+    for (let i = 0; i < 4; i++) {
+        let attempts = 0;
+        let placed = false;
+
+        while (attempts < 15 && !placed) {
+            attempts++;
+
+            const localX = (Math.random() - 0.5) * (FLIGHT.chunkSize - 40);
+            const localZ = (Math.random() - 0.5) * (FLIGHT.chunkSize - 40);
+
+            const worldX = worldOffsetX + localX;
+            const worldZ = worldOffsetZ + localZ;
+
+            const { height } = getTerrainHeightAndBiome(worldX, worldZ);
+
+            if (height > FLIGHT.waterLevel + 3) {
+                createIronOre(worldX, height + 1.2, worldZ);
+                placed = true;
+            }
+        }
+    }
+    houseData.set(key, true);
+}
+
+// Create collidable cloud layer at ~1000 meters
+function createCloudLayer() {
+    cloudLayer = new THREE.Group();
+    cloudPlatforms = [];
+
+    const cloudMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 1,
+        transparent: true,
+        opacity: 0.75
+    });
+
+    // Generate multiple cloud platforms
+    for (let i = 0; i < 80; i++) {   // many small platforms
+        const sizeX = 25 + Math.random() * 45;
+        const sizeZ = 25 + Math.random() * 45;
+
+        const platform = new THREE.Mesh(
+            new THREE.BoxGeometry(sizeX, 8, sizeZ),
+            cloudMat
+        );
+
+        // Random position in world
+        const x = (Math.random() - 0.5) * 6000;
+        const z = (Math.random() - 0.5) * 6000;
+        const y = 980 + Math.random() * 60;   // around 1000 meters
+
+        platform.position.set(x, y, z);
+        platform.userData = { isCloudPlatform: true };
+
+        cloudLayer.add(platform);
+        cloudPlatforms.push(platform);
+    }
+
+    scene.add(cloudLayer);
+}
+
+
+function updateScreenShake() {
+    if (screenShake > 0.01) {
+        const shakeX = (Math.random() - 0.5) * screenShake * 2.8;
+        const shakeY = (Math.random() - 0.5) * screenShake * 2.2;
+
+        camera.position.x += shakeX * 0.08;
+        camera.position.y += shakeY * 0.08;
+
+        screenShake *= 0.82;        // decay
+    }
+}
+// Spawn Hunter Castle Base - only near spawn (1 chunk away)
+function spawnHunterBase() {
+    if (hunterBaseBuilt) return;
+
+    const baseCx = spawnChunkX + (Math.random() < 0.5 ? 1 : -1);
+    const baseCz = spawnChunkZ + (Math.random() < 0.5 ? 1 : -1);
+
+    createHunterCastle(baseCx * FLIGHT.chunkSize + FLIGHT.chunkSize/2,
+                       25,
+                       baseCz * FLIGHT.chunkSize + FLIGHT.chunkSize/2);
+
+    hunterBaseBuilt = true;
+}
+
+// Create dark stone castle base for hunters
+function createHunterCastle(x, y, z) {
+    const castle = new THREE.Group();
+
+    const stoneMat = new THREE.MeshStandardMaterial({
+        color: 0x444455,
+        roughness: 0.95
+    });
+
+    // Main keep (big central building)
+    const keep = new THREE.Mesh(new THREE.BoxGeometry(28, 22, 28), stoneMat);
+    keep.position.set(x, y + 11, z);
+    castle.add(keep);
+
+    // Four corner towers
+    for (let i = 0; i < 4; i++) {
+        const angle = i * Math.PI / 2;
+        const tx = Math.cos(angle) * 18;
+        const tz = Math.sin(angle) * 18;
+
+        const tower = new THREE.Mesh(new THREE.BoxGeometry(8, 32, 8), stoneMat);
+        tower.position.set(x + tx, y + 16, z + tz);
+        castle.add(tower);
+    }
+
+    // Walls
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x333344, roughness: 0.9 });
+    for (let i = 0; i < 4; i++) {
+        const angle = i * Math.PI / 2;
+        const wx = Math.cos(angle) * 22;
+        const wz = Math.sin(angle) * 22;
+
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(40, 12, 6), wallMat);
+        wall.position.set(x + wx * 0.7, y + 6, z + wz * 0.7);
+        wall.rotation.y = angle;
+        castle.add(wall);
+    }
+
+    // Gate (dark entrance)
+    const gate = new THREE.Mesh(new THREE.BoxGeometry(8, 14, 6), new THREE.MeshStandardMaterial({ color: 0x1a1a22 }));
+    gate.position.set(x, y + 7, z + 22);
+    castle.add(gate);
+
+    castle.userData = { isHunterCastle: true };
+    scene.add(castle);
+
+    // Spawn extra hunters around the base
+    for (let i = 0; i < 6; i++) {
+        const hx = x + (Math.random() - 0.5) * 50;
+        const hz = z + (Math.random() - 0.5) * 50;
+        const { height } = getTerrainHeightAndBiome(hx, hz);
+        createHunter(hx, height + 1, hz);
+    }
+
+    console.log("🏰 Hunter Castle spawned near spawn!");
+    return castle;
+}
+// Realistic Water Physics + Swimming
+function updateWaterPhysics(delta) {
+    const playerY = camera.position.y;
+    const waterY = FLIGHT.waterLevel;
+
+    const wasInWater = isInWater;
+    isInWater = playerY < waterY + 1.8;
+
+    if (isInWater) {
+        // Swimming / floating
+        if (spaceHeld) {
+            velocity.y += 22 * delta;
+            swimVelocity.y = THREE.MathUtils.lerp(swimVelocity.y, 14, 10 * delta);
+        } else {
+            swimVelocity.y = THREE.MathUtils.lerp(swimVelocity.y, -6, 7 * delta);
+        }
+
+        // Water resistance
+        velocity.x *= 0.82;
+        velocity.z *= 0.82;
+        velocity.y = THREE.MathUtils.lerp(velocity.y, swimVelocity.y, 0.3);
+
+        // Gentle currents
+        const currentX = Math.sin(camera.position.z * 0.008 + Date.now()*0.0005) * 4.2;
+        const currentZ = Math.cos(camera.position.x * 0.007 + Date.now()*0.0006) * 3.1;
+        velocity.x += currentX * delta * 0.6;
+        velocity.z += currentZ * delta * 0.6;
+
+        // === UNDERWATER BLUR + BLUE TINT (stronger when deeper) ===
+        const depth = Math.max(0, waterY - playerY);           // how deep you are
+        const blurStrength = Math.min(0.92, depth * 0.095);    // blur increases with depth
+        const blueTint = Math.min(0.85, depth * 0.09);
+
+        if (renderer) {
+            // Blue tint + reduced exposure
+            renderer.toneMappingExposure = 0.52 + (1 - blueTint) * 0.48;
+
+            // Fog for blue underwater look
+            scene.fog.color.setHSL(0.58, 0.75, 0.38 - blueTint * 0.28);
+            scene.fog.density = 0.0015 + blurStrength * 0.0065;
+        }
+
+        // Bubbles when swimming up
+        if (spaceHeld && Math.random() < 0.45) {
+            createBubble(camera.position.x, playerY - 0.8, camera.position.z);
+        }
+
+    } else {
+        // Leaving water - reset visuals
+        if (wasInWater) {
+            velocity.y = Math.max(velocity.y, 9);
+            createSplash(camera.position.x, waterY, camera.position.z);
+        }
+
+        if (renderer) {
+            renderer.toneMappingExposure = 1.0;
+            scene.fog.color.setHSL(0.6, 0.4, 0.6);   // reset to sky color
+            scene.fog.density = 0.0015;
+        }
+    }
+
+    // Prevent sinking too deep
+    if (isInWater && playerY < waterY - 14) {
+        camera.position.y = waterY - 14;
+        velocity.y = 14;
+    }
+}
+function createBubble(x, y, z) {
+    const bubble = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15 + Math.random() * 0.1, 6, 6),
+        new THREE.MeshBasicMaterial({ color: 0x88ddff, transparent: true, opacity: 0.6 })
+    );
+    bubble.position.set(x + (Math.random()-0.5)*1.2, y, z + (Math.random()-0.5)*1.2);
+    bubble.userData = { life: 1.2 + Math.random(), velY: 6 + Math.random() * 8 };
+    scene.add(bubble);
+    splashParticles.push(bubble);   // reuse array for simplicity
+}
+
+// Splash particles on water impact
+function createSplash(x, y, z) {
+    for (let i = 0; i < 18; i++) {
+        const p = new THREE.Mesh(
+            new THREE.SphereGeometry(0.2 + Math.random() * 0.25, 5, 5),
+            new THREE.MeshBasicMaterial({ color: 0xaaddff, transparent: true, opacity: 0.8 })
+        );
+        p.position.set(x, y + 0.3, z);
+        p.userData = {
+            life: 0.8 + Math.random(),
+            vel: new THREE.Vector3(
+                (Math.random()-0.5)*18,
+                8 + Math.random()*14,
+                (Math.random()-0.5)*18
+            )
+        };
+        scene.add(p);
+        splashParticles.push(p);
+    }
+}
+
+// Update splash + bubble particles
+function updateWaterParticles(delta) {
+    for (let i = splashParticles.length - 1; i >= 0; i--) {
+        const p = splashParticles[i];
+        if (!p.userData) continue;
+
+        p.userData.life -= delta;
+        if (p.userData.life <= 0) {
+            scene.remove(p);
+            splashParticles.splice(i, 1);
+            continue;
+        }
+
+        if (p.userData.vel) {
+            p.position.addScaledVector(p.userData.vel, delta);
+            p.userData.vel.y -= 35 * delta;
+            p.userData.vel.multiplyScalar(0.96);
+        } else if (p.userData.velY) {
+            p.position.y += p.userData.velY * delta;
+            p.userData.velY *= 0.94;
+        }
+
+        p.material.opacity = p.userData.life * 0.9;
+        p.scale.setScalar(p.userData.life * 1.1);
+    }
+}
+function createIronPeaksFortress(x, y, z) {
+    const fortress = new THREE.Group();
+
+    // Large stone base
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x555577, roughness: 0.85 });
+    const base = new THREE.Mesh(new THREE.BoxGeometry(22, 12, 22), stoneMat);
+    base.position.set(x, y + 6, z);
+    fortress.add(base);
+
+    // Main tower
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(14, 28, 14), stoneMat);
+    tower.position.set(x, y + 20, z);
+    fortress.add(tower);
+
+    // Four corner towers
+    for (let i = 0; i < 4; i++) {
+        const angle = i * (Math.PI * 2 / 4);
+        const tx = Math.cos(angle) * 11;
+        const tz = Math.sin(angle) * 11;
+
+        const cornerTower = new THREE.Mesh(new THREE.BoxGeometry(6, 22, 6), stoneMat);
+        cornerTower.position.set(x + tx, y + 17, z + tz);
+        fortress.add(cornerTower);
+    }
+
+    // Metal roof accents
+    const metalMat = new THREE.MeshStandardMaterial({ color: 0x99aabb, metalness: 0.7 });
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(24, 2, 24), metalMat);
+    roof.position.set(x, y + 34, z);
+    fortress.add(roof);
+
+    fortress.userData = { isIronPeaksFortress: true };
+
+    scene.add(fortress);
+
+    // Spawn the special chest on the highest point
+    spawnIronPeaksChest(x, y + 37, z);
+
+    return fortress;
+}
+function updateGlideRatioDisplay() {
+    let currentGlide = FLIGHT.glideRatio;
+
+    if (hasGlideEnchant) {
+        currentGlide = 100.0;
+    } else if (playerWingFold === 1) {
+        currentGlide = FLIGHT.glideRatio * 0.68;
+    } else if (playerWingFold === 2) {
+        currentGlide = FLIGHT.glideRatio * 0.38;
+    }
+
+    const display = document.getElementById('glideRatioDisplay');
+    if (display) {
+        display.textContent = currentGlide.toFixed(1);
+
+        // Color feedback
+        if (hasGlideEnchant) {
+            display.style.color = '#aaffff';
+        } else if (playerWingFold > 0) {
+            display.style.color = '#ffdd88';
+        } else {
+            display.style.color = '#aaffdd';
+        }
+    }
+}
+
+
+// Particle glow around enchanter and towers
+
+// Use Enchanter (press K while holding enchantment item)
+
+
+
+
+function updateEnchanterParticles(delta) {
+    // Optional: make particles bob gently (you can expand this later)
+}
+
+// Special Iron Peaks Chest
+function spawnIronPeaksChest(x, y, z) {
+    const chest = new THREE.Mesh(
+        new THREE.BoxGeometry(6, 5, 8),
+        new THREE.MeshStandardMaterial({ color: 0x334466, metalness: 0.7 })
+    );
+    chest.position.set(x, y, z);
+    chest.userData = {
+        isIronPeaksChest: true,
+        opened: false,
+        loot: {
+            iron: 48,
+            jetFuel: 30,
+            tungsten: 12,
+            carbide: 3,
+            planePart: 1,
+            skyMap: 1
+        }
+    };
+    scene.add(chest);
+}
+// Spawn Iron Peaks Fortresses at high altitude (~1000m+)
+function spawnIronPeaksInChunk(cx, cz) {
+    const key = `ironpeaks_${cx},${cz}`;
+    if (houseData.has(key)) return;
+
+    const worldOffsetX = cx * FLIGHT.chunkSize;
+    const worldOffsetZ = cz * FLIGHT.chunkSize;
+
+    const numFortresses = Math.random() < 0.35 ? 2 : 1;
+
+    for (let i = 0; i < numFortresses; i++) {
+        let attempts = 0;
+        let placed = false;
+
+        while (attempts < 12 && !placed) {
+            attempts++;
+
+            const localX = (Math.random() - 0.5) * (FLIGHT.chunkSize - 80);
+            const localZ = (Math.random() - 0.5) * (FLIGHT.chunkSize - 80);
+
+            const worldX = worldOffsetX + localX;
+            const worldZ = worldOffsetZ + localZ;
+
+            const { height } = getTerrainHeightAndBiome(worldX, worldZ);
+
+            // Spawn at high altitude (target ~1000m and above)
+            const targetHeight = 1000 + Math.random() * 200;
+
+            if (height > 50) {   // only spawn if the ground is not too low
+                createIronPeaksFortress(worldX, targetHeight, worldZ);
+                placed = true;
+            }
+        }
+    }
+
+    houseData.set(key, true);
+}
+// Create floating sky building
+function createSkyBuilding(x, y, z) {
+    const building = new THREE.Group();
+
+    // Main tower
+    const towerMat = new THREE.MeshStandardMaterial({ color: 0x334455, roughness: 0.7 });
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(12, 18, 12), towerMat);
+    tower.position.set(x, y + 9, z);
+    building.add(tower);
+
+    // Glass windows / accents
+    const glassMat = new THREE.MeshStandardMaterial({
+        color: 0x88ccff,
+        metalness: 0.9,
+        roughness: 0.2,
+        transparent: true,
+        opacity: 0.6
+    });
+    const windows = new THREE.Mesh(new THREE.BoxGeometry(11, 16, 11), glassMat);
+    windows.position.set(x, y + 9, z);
+    building.add(windows);
+
+    // Roof platform
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0x112233 });
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(14, 1.5, 14), roofMat);
+    roof.position.set(x, y + 19, z);
+    building.add(roof);
+
+    building.userData = { isSkyBuilding: true };
+
+    scene.add(building);
+
+    // Spawn chest on the roof
+    spawnSkyChest(x, y + 21, z);
+
+    return building;
+}
+
+// Spawn special sky chest
+function spawnSkyChest(x, y, z) {
+    const chestGeo = new THREE.BoxGeometry(5, 4, 7);
+    const chestMat = new THREE.MeshStandardMaterial({ color: 0x4488aa, emissive: 0x112244 });
+    const chest = new THREE.Mesh(chestGeo, chestMat);
+    chest.position.set(x, y, z);
+    chest.userData = {
+        isSkyChest: true,
+        opened: false,
+        carbon: 64,
+        jet: 30,
+        tungsten: 2
+    };
+    scene.add(chest);
+}
+// Spawn sky buildings above 100 meters (1 per chunk)
+function spawnSkyBuildingsInChunk(cx, cz) {
+    const key = `sky_${cx},${cz}`;
+    if (houseData.has(key)) return;
+
+    const worldOffsetX = cx * FLIGHT.chunkSize;
+    const worldOffsetZ = cz * FLIGHT.chunkSize;
+
+    const localX = (Math.random() - 0.5) * (FLIGHT.chunkSize - 60);
+    const localZ = (Math.random() - 0.5) * (FLIGHT.chunkSize - 60);
+
+    const worldX = worldOffsetX + localX;
+    const worldZ = worldOffsetZ + localZ;
+
+    const { height } = getTerrainHeightAndBiome(worldX, worldZ);
+
+    // Only spawn if base height is reasonable and we're high enough
+    if (height > 20) {
+        const skyHeight = Math.max(100, height + 60 + Math.random() * 40);
+        createSkyBuilding(worldX, skyHeight, worldZ);
+    }
+
+    houseData.set(key, true);
+}
+
+// Spawn Tungsten Ore - 1 per chunk (rarer)
+function spawnTungstenOreInChunk(cx, cz) {
+    const key = `tungsten_${cx},${cz}`;
+    if (houseData.has(key)) return;
+
+    const worldOffsetX = cx * FLIGHT.chunkSize;
+    const worldOffsetZ = cz * FLIGHT.chunkSize;
+
+    const localX = (Math.random() - 0.5) * (FLIGHT.chunkSize - 50);
+    const localZ = (Math.random() - 0.5) * (FLIGHT.chunkSize - 50);
+
+    const worldX = worldOffsetX + localX;
+    const worldZ = worldOffsetZ + localZ;
+
+    const { height } = getTerrainHeightAndBiome(worldX, worldZ);
+
+    if (height > FLIGHT.waterLevel + 5) {
+        createTungstenOre(worldX, height + 1.5, worldZ);
+    }
+
+    houseData.set(key, true);
+}
+// Spawn Hunting Plane - 1 per chunk during daytime only
+function spawnHuntingPlaneInChunk(cx, cz) {
+    const key = `plane_${cx},${cz}`;
+    if (houseData.has(key)) return;        // prevent duplicates
+    if (isNight) return;                    // only spawn during day
+
+    const worldOffsetX = cx * FLIGHT.chunkSize;
+    const worldOffsetZ = cz * FLIGHT.chunkSize;
+
+    const localX = (Math.random() - 0.5) * (FLIGHT.chunkSize - 80);
+    const localZ = (Math.random() - 0.5) * (FLIGHT.chunkSize - 80);
+
+    const worldX = worldOffsetX + localX;
+    const worldZ = worldOffsetZ + localZ;
+
+    const { height } = getTerrainHeightAndBiome(worldX, worldZ);
+
+    if (height > FLIGHT.waterLevel + 10) {
+        createHuntingPlane(worldX, height, worldZ);
+    }
+
+    houseData.set(key, true);
+}
+function createIronOre(x, y, z) {
+    const group = new THREE.Group();
+
+    // Rusty iron ore
+    const oreMat = new THREE.MeshStandardMaterial({
+        color: 0xaa6644,
+        roughness: 0.9,
+        metalness: 0.3
+    });
+
+    const main = new THREE.Mesh(new THREE.DodecahedronGeometry(1.4, 1), oreMat);
+    main.position.set(0, y, 0);
+    group.add(main);
+
+    // Smaller rusty bits
+    for (let i = 0; i < 4; i++) {
+        const small = new THREE.Mesh(new THREE.DodecahedronGeometry(0.6, 0), oreMat);
+        small.position.set(
+            (Math.random()-0.5)*1.8,
+            y - 0.4 + Math.random()*0.8,
+            (Math.random()-0.5)*1.8
+        );
+        group.add(small);
+    }
+
+    group.userData = { type: 'iron', health: 300 };
+    group.position.set(x, 0, z);
+    scene.add(group);
+    return group;
+}
+
+function createTungstenOre(x, y, z) {
+    const group = new THREE.Group();
+
+    // Shiny blue-gold tungsten
+    const oreMat = new THREE.MeshStandardMaterial({
+        color: 0x7799ff,
+        emissive: 0x3344aa,
+        metalness: 0.85,
+        roughness: 0.4
+    });
+
+    const main = new THREE.Mesh(new THREE.DodecahedronGeometry(1.6, 1), oreMat);
+    main.position.set(0, y, 0);
+    group.add(main);
+
+    group.userData = { type: 'tungsten', health: 400 };
+    group.position.set(x, 0, z);
+    scene.add(group);
+    return group;
+}
+
+
+
+function openCrafting() {
+    craftingOpen = true;
+    document.getElementById('craftingScreen').style.display = 'block';
+    renderRecipes();
+}
+
+function closeCrafting() {
+    craftingOpen = false;
+    document.getElementById('craftingScreen').style.display = 'none';
+}
+
+function renderRecipes() {
+    const container = document.getElementById('recipesList');
+    container.innerHTML = '';
+
+    RECIPES.forEach((recipe, index) => {
+        const canCraft = recipe.ingredients.every(ing => getTotal(ing.type) >= ing.count);
+
+        const div = document.createElement('div');
+        div.style.cssText = `
+            background: rgba(30,35,55,0.9);
+            border: 2px solid ${canCraft ? '#88ffaa' : '#555577'};
+            border-radius: 14px;
+            padding: 18px 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            cursor: ${canCraft ? 'pointer' : 'not-allowed'};
+            transition: all 0.2s;
+        `;
+
+        if (canCraft) {
+            div.style.boxShadow = '0 0 15px rgba(136,255,170,0.3)';
+        }
+
+        div.innerHTML = `
+            <div style="font-size:52px; width:70px;">${recipe.emoji}</div>
+            <div style="flex:1;">
+                <div style="font-size:19px; font-weight:bold;">${recipe.name}</div>
+                <div style="font-size:14px; color:#aaccff; margin-top:4px;">
+                    ${recipe.ingredients.map(ing => `${ing.count} ${ing.emoji}`).join(' + ')}
+                </div>
+            </div>
+            <div style="font-size:22px; color:${canCraft ? '#88ffaa' : '#666688'};">→</div>
+        `;
+
+        if (canCraft) {
+            div.addEventListener('click', () => craftRecipe(index));
+        }
+
+        container.appendChild(div);
+    });
+}
+
+function craftRecipe(recipeIndex) {
+    const recipe = RECIPES[recipeIndex];
+    const canCraft = recipe.ingredients.every(ing => getTotal(ing.type) >= ing.count);
+
+    if (!canCraft) return;
+
+    // Remove ingredients
+    recipe.ingredients.forEach(ing => {
+        let remaining = ing.count;
+        for (let i = 0; i < inventory.length && remaining > 0; i++) {
+            if (inventory[i] && inventory[i].type === ing.type) {
+                const take = Math.min(remaining, inventory[i].count);
+                inventory[i].count -= take;
+                remaining -= take;
+                if (inventory[i].count <= 0) inventory[i] = null;
+            }
+        }
+    });
+
+    // Give result
+    addItemToInventory(recipe.result.type, recipe.result.count);
+
+    renderHotbar();
+    renderFullInventory();
+    renderRecipes();
+
+    // Success message
+    const msg = document.getElementById('takeoffWarning');
+    msg.innerHTML = `🪓 ${recipe.name} CRAFTED!`;
+    msg.style.opacity = '1';
+    msg.style.color = '#aaffaa';
+    setTimeout(() => msg.style.opacity = '0', 2000);
+
+    // AUTO CLOSE crafting screen after successful craft
+    setTimeout(() => {
+        closeCrafting();
+    }, 800);   // closes after 0.8 seconds
+}
+function createHuntingPlane(x, y, z) {
+    const planeGroup = new THREE.Group();
+
+    // Fuselage (white)
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.5 });
+    const fuselage = new THREE.Mesh(new THREE.BoxGeometry(9, 3.2, 2.8), bodyMat);
+    fuselage.position.set(0, y + 8, 0);
+    planeGroup.add(fuselage);
+
+    // Red stripe on fuselage
+    const stripeMat = new THREE.MeshStandardMaterial({ color: 0xff2222 });
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(9.1, 0.6, 2.9), stripeMat);
+    stripe.position.set(0, y + 7.2, 0);
+    planeGroup.add(stripe);
+
+    // Wings (high-wing Cessna style)
+    const wingMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+    const wings = new THREE.Mesh(new THREE.BoxGeometry(20, 0.8, 4), wingMat);
+    wings.position.set(0, y + 9.5, 0);
+    planeGroup.add(wings);
+
+    // Tail wings
+    const tailWing = new THREE.Mesh(new THREE.BoxGeometry(6, 0.6, 3), wingMat);
+    tailWing.position.set(-6, y + 9.8, 0);
+    planeGroup.add(tailWing);
+
+    // Vertical stabilizer
+    const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.8, 5, 2), bodyMat);
+    tailFin.position.set(-6.5, y + 11, 0);
+    planeGroup.add(tailFin);
+
+    // Propeller + nose
+    const noseMat = new THREE.MeshStandardMaterial({ color: 0xff4444 });
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(1.4, 3, 12), noseMat);
+    nose.position.set(5, y + 8, 0);
+    nose.rotation.x = Math.PI / 2;
+    planeGroup.add(nose);
+
+    const prop = new THREE.Mesh(new THREE.BoxGeometry(0.5, 5, 0.5), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+    prop.position.set(6.5, y + 8, 0);
+    planeGroup.add(prop);
+
+    planeGroup.userData = {
+        health: 1000,
+        lastBombTime: 0,
+        wingFold: 0,           // 0 = normal, 1 = folded, 2 = fully folded
+        stallTimer: 0,
+        velocity: new THREE.Vector3(0, 0, 0)
+    };
+
+    planeGroup.position.set(x, y + 30, z); // spawn high
+    scene.add(planeGroup);
+    planes.push(planeGroup);
+
+    return planeGroup;
+}
+function updatePlanes(delta) {
+    const now = Date.now();
+
+    for (let i = planes.length - 1; i >= 0; i--) {
+        const plane = planes[i];
+        if (!plane || !plane.userData) continue;
+
+        const data = plane.userData;
+
+        // Despawn at night
+        if (isNight) {
+            scene.remove(plane);
+            planes.splice(i, 1);
+            continue;
+        }
+
+        const dx = camera.position.x - plane.position.x;
+        const dy = (camera.position.y + 8) - plane.position.y;   // aim a bit above player
+        const dz = camera.position.z - plane.position.z;
+        const dist = Math.hypot(dx, dy, dz);
+
+        // === AGGRESSIVE CHASE + RAMMING ===
+        let speed = 38;                    // faster base speed
+
+        if (dist < 120) {
+            // Close range: try to ram you
+            speed = 48;
+
+            // Predict player movement a bit
+            const predictedY = camera.position.y + velocity.y * 0.6;
+
+            plane.position.x += (dx / dist) * speed * delta;
+            plane.position.y += ((predictedY - plane.position.y) / dist) * speed * 0.75 * delta;
+            plane.position.z += (dz / dist) * speed * delta;
+
+            // Face player more aggressively
+            plane.lookAt(camera.position.x, predictedY, camera.position.z);
+
+            // Ram damage if very close
+            if (dist < 12) {
+                playerHealth = Math.max(0, playerHealth - 2);
+                const warning = document.getElementById('takeoffWarning');
+                warning.innerHTML = `💥 PLANE RAM! -2 HP`;
+                warning.style.opacity = '1';
+                warning.style.color = '#ff4444';
+                setTimeout(() => warning.style.opacity = '0', 800);
+            }
+        }
+        else {
+            // Long range pursuit
+            plane.position.x += (dx / dist) * speed * delta;
+            plane.position.y += (dy / dist) * speed * 0.6 * delta;
+            plane.position.z += (dz / dist) * speed * delta;
+            plane.lookAt(camera.position);
+        }
+
+        // Occasional stall / wobble when chasing hard (makes diving better escape)
+        if (dist < 80 && Math.random() < 0.008) {
+            data.stallTimer = 1.2 + Math.random() * 0.8;
+        }
+
+        if (data.stallTimer > 0) {
+            data.stallTimer -= delta;
+            plane.position.y -= 18 * delta;           // fall during stall
+            plane.rotation.z = Math.sin(now * 0.15) * 0.6;
+        } else {
+            plane.rotation.z *= 0.88;
+        }
+
+        // Bomb dropping (keep every 5 seconds)
+        if (dist < 140 && now - (data.lastBombTime || 0) > 5000) {
+            data.lastBombTime = now;
+            shootBombFromPlane(plane);
+        }
+
+        // Player can still shoot the plane
+        if (dist < 35 && keys['click'] && now - (lastAttackTime || 0) > 280) {
+            keys['click'] = false;
+            lastAttackTime = now;
+
+            const toolMult = getToolMultiplier();
+            const damage = Math.max(12, 35 * toolMult);
+
+            data.health = (data.health || 1000) - damage;
+
+            const warning = document.getElementById('takeoffWarning');
+            warning.innerHTML = `💥 PLANE HIT! (${Math.ceil(data.health)}/1000)`;
+            warning.style.opacity = '1';
+            warning.style.color = '#ffaa66';
+            setTimeout(() => warning.style.opacity = '0', 700);
+
+            if (data.health <= 0) {
+                scene.remove(plane);
+                planes.splice(i, 1);
+                const msg = document.getElementById('takeoffWarning');
+                msg.innerHTML = `💥 HUNTING PLANE DESTROYED!`;
+                msg.style.opacity = '1';
+                msg.style.color = '#aaffaa';
+                setTimeout(() => msg.style.opacity = '0', 1800);
+            }
+        }
+    }
+}
+function shootBombFromPlane(plane) {
+    const bomb = new THREE.Mesh(
+        new THREE.SphereGeometry(1.4, 8, 8),
+        new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0x440000, metalness: 0.6 })
+    );
+
+    bomb.position.copy(plane.position);
+    bomb.position.y -= 5;
+
+    const dir = new THREE.Vector3(
+        camera.position.x - plane.position.x,
+        camera.position.y - plane.position.y - 10,
+        camera.position.z - plane.position.z
+    ).normalize();
+
+    bomb.userData = {
+        velocity: dir.multiplyScalar(28),
+        life: 12,
+        damage: 10
+    };
+
+    scene.add(bomb);
+    bombs.push(bomb);
+}
+function updateBombs(delta) {
+    const now = Date.now();
+
+    for (let i = bombs.length - 1; i >= 0; i--) {
+        const bomb = bombs[i];
+        if (!bomb) continue;
+
+        bomb.userData.velocity.y -= 28 * delta;   // gravity
+        bomb.position.addScaledVector(bomb.userData.velocity, delta);
+
+        bomb.rotation.x += delta * 8;
+
+        bomb.userData.life -= delta;
+
+        // Check hit player
+        const distToPlayer = bomb.position.distanceTo(camera.position);
+        if (distToPlayer < 4) {
+            let damage = bomb.userData.damage;
+
+            // Right-click block (1/8 damage)
+            if (keys['rightClick']) {
+                damage = Math.floor(damage / 8);
+            }
+
+            playerHealth = Math.max(0, playerHealth - damage);
+
+            const warning = document.getElementById('takeoffWarning');
+            warning.innerHTML = `💣 BOMB HIT! -${damage} HP`;
+            warning.style.opacity = '1';
+            warning.style.color = '#ff4444';
+            setTimeout(() => warning.style.opacity = '0', 900);
+
+            scene.remove(bomb);
+            bombs.splice(i, 1);
+            continue;
+        }
+
+        if (bomb.userData.life <= 0) {
+            scene.remove(bomb);
+            bombs.splice(i, 1);
+        }
+    }
+}
+
+function getToolMultiplier() {
+    const selected = inventory[selectedHotbar];
+    if (!selected) return 1;
+
+    switch(selected.type) {
+        case 'axe':      return 1;   // Stone Axe
+        case 'ironAxe':  return 5;   // Iron Axe
+        case 'tungAxe':  return 10;  // Tungsten Axe
+        case 'spear':    return 11;  // Tungsten Spear
+        default:         return 1;
+    }
+}
+
+    function initInventory() {
+        inventory = Array(36).fill(null);
+        inventory[0] = { type: 'flap', count: 9 };
+        inventory[1] = { type: 'jet',  count: 64 };
+        selectedHotbar = 0;
+    }
+
+function createSlot(index) {
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    slot.dataset.index = index;
+    slot.draggable = true;
+
+    const updateVisual = () => {
+        const data = inventory[index];
+        if (data) {
+            slot.innerHTML = `
+                <span>${ITEM_DB[data.type].emoji}</span>
+                <span class="count">${data.count}</span>
+            `;
+            slot.style.borderColor = (index < 9 && index === selectedHotbar) ? '#aaffff' : ITEM_DB[data.type].color;
+        } else {
+            slot.innerHTML = '';
+            slot.style.borderColor = (index < 9 && index === selectedHotbar) ? '#aaffff' : '#445566';
+        }
+    };
+    updateVisual();
+
+    // ==================== FIXED DRAG & DROP ====================
+    slot.addEventListener('dragstart', e => {
+        if (!inventory[index]) {
+            e.preventDefault();
+            return;
+        }
+        e.dataTransfer.setData('text/plain', index.toString());
+        slot.style.opacity = '0.4';
+    });
+
+    slot.addEventListener('dragend', () => {
+        slot.style.opacity = '1';
+    });
+
+    slot.addEventListener('dragover', e => {
+        e.preventDefault();
+        slot.style.borderColor = '#88ffff';
+    });
+
+    slot.addEventListener('dragleave', () => {
+        updateVisual();
+    });
+
+    slot.addEventListener('drop', e => {
+        e.preventDefault();
+        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+        if (fromIndex === index || !inventory[fromIndex]) return;
+
+        const fromItem = inventory[fromIndex];
+        let targetItem = inventory[index];
+
+        if (!targetItem) {
+            // Simple move
+            inventory[index] = fromItem;
+            inventory[fromIndex] = null;
+        }
+        else if (targetItem.type === fromItem.type && targetItem.type !== 'axe') {
+            // Stack same items
+            const max = ITEM_DB[fromItem.type].maxStack;
+            const canAdd = max - targetItem.count;
+            const move = Math.min(fromItem.count, canAdd);
+            if (move > 0) {
+                targetItem.count += move;
+                fromItem.count -= move;
+                if (fromItem.count <= 0) inventory[fromIndex] = null;
+            }
+        }
+        else {
+            // Swap different items
+            inventory[index] = fromItem;
+            inventory[fromIndex] = targetItem;
+        }
+
+        renderHotbar();
+        renderFullInventory();
+    });
+
+    return slot;
+}
+
+    function renderHotbar() {
+        const container = document.getElementById('hotbar');
+        container.innerHTML = '';
+        for (let i = 0; i < 9; i++) {
+            const slot = createSlot(i);
+            container.appendChild(slot);
+        }
+    }
+
+    function renderFullInventory() {
+        const grid = document.getElementById('inventoryGrid');
+        grid.innerHTML = '';
+        for (let i = 9; i < 36; i++) {
+            const slot = createSlot(i);
+            grid.appendChild(slot);
+        }
+    }
+
+    // ==================== GLOBALS ====================
+    let scene, camera, renderer, clock;
+    let chunks = new Map();
+    let waterMesh, cloudsGroup;
+    let velocity = new THREE.Vector3(0, 0, 0);
+    let isOnGround = true;
+    let isGliding = false;
+    let takeoffRunSpeed = 0;
+    let yaw = -1.2, pitch = -0.1, targetYaw = yaw, targetPitch = pitch;
+    let move = { forward: false, backward: false, left: false, right: false };
+    let spaceHeld = false;
+    let flapPressed = false;
+    let jetPressed = false;
+    let lastFlapTime = 0;
+    let jetBoostEndTime = 0;
+    let flapRegenTimer = 0;
+    let thermalStrength = 0;
+    let spawnChunkX = 0;
+    let spawnChunkZ = 0;
+    let chestMesh = null;
+    let houses = [];
+    let wingFoldMode = 0; // 0 = normal, 1 = folded, 2 = fully folded (global for player control)
+    let keys = {};
+    // ==================== HUNTERS & DAY/NIGHT ====================
+    let hunters = [];
+    let isNight = false;
+    let dayTime = 0;                    // 0 to 1 (0 = midnight, 0.5 = noon)
+    const DAY_LENGTH = 120;             // seconds for full day cycle (you can change)
+    let lastAttackTime = 0;
+    let lastPlayerHitTime = 0;
+    let trees = [];
+    let activeTreeHP = null;
+    let screenFlashElement = null;
+    const TREE_MIN_DISTANCE = 5;
+    let stones = [];
+    const STONE_MIN_DISTANCE = 6;
+    let playerWingFold = 0; // 0 = Normal, 1 = Folded, 2 = Fully Folded
+
+    // Simple blood particle system
+    let bloodParticles = [];
+
+    // PERLIN NOISE
+    let perlinPerm = new Array(512);
+
+    const texConfig = {
+        meadow:     { size: 1024, baseColor: '#3a8f38', darkPatches: '#246526', darkAlpha: 0.55, strokeColor: '#1f5a22', strokeWidth: 6, highlightColor: '#6be14f', highlightWidth: 3.5 },
+        taiga:      { size: 1024, baseColor: '#2a5f2a', darkPatches: '#1e3f22', darkAlpha: 0.65, strokeColor: '#1a3a1f', strokeWidth: 7, highlightColor: '#4a9f4a', highlightWidth: 3.2 },
+        tundra:     { size: 1024, baseColor: '#c4d4c8', darkPatches: '#a8b8b0', darkAlpha: 0.45, strokeColor: '#8a9a8c', strokeWidth: 5, highlightColor: '#e8f0e8', highlightWidth: 3.5 },
+        savanna:    { size: 1024, baseColor: '#c2a04d', darkPatches: '#a67c2b', darkAlpha: 0.52, strokeColor: '#8b5a2b', strokeWidth: 5, highlightColor: '#e0c070', highlightWidth: 3 },
+        desert:     { size: 1024, baseColor: '#e2c9a0', darkPatches: '#d4b07a', darkAlpha: 0.38, strokeColor: '#c39a5f', strokeWidth: 4, highlightColor: '#f5e4c0', highlightWidth: 2.5 }
+    };
+    let T = {};
+
+    function createGrassTexture(cfg) {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = cfg.size;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = cfg.baseColor; ctx.fillRect(0, 0, cfg.size, cfg.size);
+        ctx.fillStyle = cfg.darkPatches;
+        for (let i = 0; i < 160; i++) {
+            const x = Math.random() * cfg.size, y = Math.random() * cfg.size;
+            ctx.globalAlpha = cfg.darkAlpha;
+            ctx.fillRect(x - 35, y - 35, 70, 70);
+        }
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = cfg.strokeColor; ctx.lineWidth = cfg.strokeWidth;
+        for (let i = 0; i < 52000; i++) {
+            const x = Math.random() * cfg.size, y = Math.random() * cfg.size;
+            const len = 30 + Math.random() * 80;
+            ctx.save(); ctx.translate(x, y); ctx.rotate((Math.random() - 0.5) * 1.6);
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -len); ctx.stroke(); ctx.restore();
+        }
+        ctx.strokeStyle = cfg.highlightColor; ctx.lineWidth = cfg.highlightWidth;
+        for (let i = 0; i < 32000; i++) {
+            const x = Math.random() * cfg.size, y = Math.random() * cfg.size * 0.65;
+            const len = 15 + Math.random() * 45;
+            ctx.save(); ctx.translate(x, y); ctx.rotate((Math.random() - 0.5) * 1.2);
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -len); ctx.stroke(); ctx.restore();
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(4, 4);
+        return tex;
+    }
+    // Spawn collidable cloud platforms in every chunk at ~1000m (with holes)
+function spawnCloudLayerInChunk(cx, cz) {
+    const key = `clouds_${cx},${cz}`;
+    if (houseData.has(key)) return;
+
+    const worldOffsetX = cx * FLIGHT.chunkSize;
+    const worldOffsetZ = cz * FLIGHT.chunkSize;
+
+    const numClouds = 4 + Math.floor(Math.random() * 5); // 4-8 platforms per chunk
+
+    for (let i = 0; i < numClouds; i++) {
+        const localX = (Math.random() - 0.5) * (FLIGHT.chunkSize - 40);
+        const localZ = (Math.random() - 0.5) * (FLIGHT.chunkSize - 40);
+
+        const worldX = worldOffsetX + localX;
+        const worldZ = worldOffsetZ + localZ;
+
+        // Random size with natural holes
+        const sizeX = 18 + Math.random() * 38;
+        const sizeZ = 18 + Math.random() * 38;
+
+        const cloudMat = new THREE.MeshStandardMaterial({
+            color: 0xeeeeee,
+            roughness: 1.0,
+            transparent: true,
+            opacity: 0.68,
+            depthWrite: false
+        });
+
+        const platform = new THREE.Mesh(
+            new THREE.BoxGeometry(sizeX, 7.5, sizeZ),
+            cloudMat
+        );
+
+        const cloudY = 1000 + Math.random() * 45;   // around 1000m with variation
+
+        platform.position.set(worldX, cloudY, worldZ);
+        platform.userData = { isCloudPlatform: true };
+
+        scene.add(platform);
+        cloudPlatforms.push(platform);
+    }
+
+    houseData.set(key, true);
+}
+
+    function initTextures() {
+        T.meadowTex   = createGrassTexture(texConfig.meadow);
+        T.taigaTex    = createGrassTexture(texConfig.taiga);
+        T.tundraTex   = createGrassTexture(texConfig.tundra);
+        T.savannaTex  = createGrassTexture(texConfig.savanna);
+        T.desertTex   = createGrassTexture(texConfig.desert);
+    }
+
+    function initPerlin() {
+        const permSrc = [151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
+        for (let i = 0; i < 256; i++) perlinPerm[i] = perlinPerm[i+256] = permSrc[i];
+    }
+    function fade(t) { return t*t*t*(t*(t*6-15)+10); }
+    function lerp(a,b,t) { return a + t*(b-a); }
+    function grad3(hash, x, y, z) {
+        const h = hash & 15;
+        const u = h < 8 ? x : y;
+        const v = h < 4 ? y : (h === 12 || h === 14 ? x : z);
+        return ((h&1)===0 ? u : -u) + ((h&2)===0 ? v : -v);
+    }
+    function perlin3D(x, y, z) {
+        let X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+        x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+        const u = fade(x), v = fade(y), w = fade(z);
+        const aaa = perlinPerm[perlinPerm[perlinPerm[X] + Y] + Z];
+        const aba = perlinPerm[perlinPerm[perlinPerm[X] + Y+1] + Z];
+        const aab = perlinPerm[perlinPerm[perlinPerm[X] + Y] + Z+1];
+        const abb = perlinPerm[perlinPerm[perlinPerm[X] + Y+1] + Z+1];
+        const baa = perlinPerm[perlinPerm[perlinPerm[X+1] + Y] + Z];
+        const bba = perlinPerm[perlinPerm[perlinPerm[X+1] + Y+1] + Z];
+        const bab = perlinPerm[perlinPerm[perlinPerm[X+1] + Y] + Z+1];
+        const bbb = perlinPerm[perlinPerm[perlinPerm[X+1] + Y+1] + Z+1];
+        let x1 = lerp(grad3(aaa,x,y,z), grad3(baa,x-1,y,z), u);
+        let x2 = lerp(grad3(aba,x,y-1,z), grad3(bba,x-1,y-1,z), u);
+        let y1 = lerp(x1, x2, v);
+        x1 = lerp(grad3(aab,x,y,z-1), grad3(bab,x-1,y,z-1), u);
+        x2 = lerp(grad3(abb,x,y-1,z-1), grad3(bbb,x-1,y-1,z-1), u);
+        let y2 = lerp(x1, x2, v);
+        return (lerp(y1, y2, w) + 1) * 0.5;
+    }
+
+function getTerrainHeightAndBiome(wx, wz) {
+    let h = 0, amp = 52, freq = 0.0034;
+    for (let i = 0; i < 5; i++) {
+        h += (perlin3D(wx * freq, 0, wz * freq) * 2 - 1) * amp;
+        amp *= 0.46; freq *= 2.18;
+    }
+
+    // === CONTROLLED BIOME SIZE: ~3 to 4 chunks wide ===
+    const tempNoise = perlin3D(wx * 0.00095, 42, wz * 0.00095);   // tuned for ~4 chunk scale
+    const moistureNoise = perlin3D(wx * 0.00105, 88, wz * 0.00105);
+
+    let biome = 'meadow';
+
+    if (tempNoise < 0.29) {
+        biome = 'tundra';
+    }
+    else if (tempNoise < 0.57) {
+        biome = 'taiga';
+    }
+    else if (moistureNoise < 0.26) {
+        biome = 'desert';
+    }
+    else if (moistureNoise < 0.49 && tempNoise > 0.59) {
+        biome = 'savanna';
+    }
+    else {
+        biome = 'meadow';
+    }
+
+    const height = Math.max(h + 9, 3.2);
+    return { height, biome };
+}
+function getTotal(type) {
+    return inventory.reduce((sum, slot) => {
+        return sum + (slot && slot.type === type ? slot.count : 0);
+    }, 0);
+}
+
+function createChunk(cx, cz) {
+    const key = `${cx},${cz}`;
+    if (chunks.has(key)) return;
+
+    const geometry = new THREE.PlaneGeometry(FLIGHT.chunkSize, FLIGHT.chunkSize, 14, 14);
+    geometry.rotateX(-Math.PI/2);
+    const positions = geometry.attributes.position.array;
+
+    for (let i = 0; i < positions.length; i += 3) {
+        const lx = positions[i], lz = positions[i+2];
+        const worldX = cx * FLIGHT.chunkSize + lx;
+        const worldZ = cz * FLIGHT.chunkSize + lz;
+
+        const { height, biome } = getTerrainHeightAndBiome(worldX, worldZ);
+        positions[i+1] = height;
+    }
+    geometry.computeVertexNormals();
+
+    const centerBiomeData = getTerrainHeightAndBiome(
+        cx * FLIGHT.chunkSize + FLIGHT.chunkSize/2,
+        cz * FLIGHT.chunkSize + FLIGHT.chunkSize/2
+    );
+    const biome = centerBiomeData.biome;
+
+    let mat;
+    if (biome === 'taiga') {
+        mat = new THREE.MeshStandardMaterial({ map: T.taigaTex, roughness: 0.88 });
+    } else if (biome === 'tundra') {
+        mat = new THREE.MeshStandardMaterial({ map: T.tundraTex, roughness: 0.95, metalness: 0.1 });
+    } else if (biome === 'savanna') {
+        mat = new THREE.MeshStandardMaterial({ map: T.savannaTex, roughness: 0.92 });
+    } else if (biome === 'desert') {
+        mat = new THREE.MeshStandardMaterial({ map: T.desertTex, roughness: 0.96 });
+    } else {
+        mat = new THREE.MeshStandardMaterial({ map: T.meadowTex, roughness: 0.88 });
+    }
+
+    const terrain = new THREE.Mesh(geometry, mat);
+    terrain.position.set(cx * FLIGHT.chunkSize, 0, cz * FLIGHT.chunkSize);
+    scene.add(terrain);
+
+    // === SMART GRASS SPAWNING ===
+    let grassGroup = null;
+    if (biome !== 'desert') {
+        grassGroup = new THREE.Group();
+        const grassMat = new THREE.MeshStandardMaterial({ color: 0x6a9a4a });
+
+        const isSpawnChunk = (cx === spawnChunkX && cz === spawnChunkZ);
+        const grassCount = isSpawnChunk ? 30 : 280;
+
+        for (let i = 0; i < grassCount; i++) {
+            const lx = (Math.random() - 0.5) * (FLIGHT.chunkSize - 20);
+            const lz = (Math.random() - 0.5) * (FLIGHT.chunkSize - 20);
+            const h = getTerrainHeightAndBiome(cx * FLIGHT.chunkSize + lx, cz * FLIGHT.chunkSize + lz).height;
+
+            if (h > FLIGHT.waterLevel + 0.8) {
+                const blade = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.5 + Math.random() * 0.6, 3), grassMat);
+                blade.position.set(lx, h + 0.3, lz);
+                grassGroup.add(blade);
+            }
+        }
+        scene.add(grassGroup);
+    }
+
+    // === SPAWN ALL ENTITIES ===
+    spawnHousesInChunk(cx, cz);
+    spawnTreesInChunk(cx, cz);
+    spawnStonesInChunk(cx, cz);
+    spawnIronOreInChunk(cx, cz);
+    spawnTungstenOreInChunk(cx, cz);
+    spawnHuntingPlaneInChunk(cx, cz);
+    spawnSkyBuildingsInChunk(cx, cz);
+    spawnIronPeaksInChunk(cx, cz);           // Iron Peaks at ~1000m+
+    spawnCloudLayerInChunk(cx, cz);        // ← ADD THIS LINE
+    spawnLowAetherInChunk(cx, cz);     // ← ADD THIS LINE
+    generateCavesInChunk(cx, cz);        // ← ADD THIS LINE
+
+    chunks.set(key, { terrain, grass: grassGroup });
+}
+// Improved Palm Tree
+function createPalmTree(x, y, z) {
+    const treeGroup = new THREE.Group();
+
+    // Trunk
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8B5A2B, roughness: 0.85 });
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 1.05, 12, 8), trunkMat);
+    trunk.position.set(0, y + 6, 0);
+    treeGroup.add(trunk);
+
+    // Trunk rings
+    const ringMat = new THREE.MeshStandardMaterial({ color: 0x6B4420 });
+    for (let i = 1; i < 5; i++) {
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.88, 0.88, 0.7, 8), ringMat);
+        ring.position.set(0, y + 2.5 + i * 2.2, 0);
+        treeGroup.add(ring);
+    }
+
+    // Leaves
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x228B22, roughness: 0.65 });
+    for (let i = 0; i < 9; i++) {
+        const angle = (i / 9) * Math.PI * 2;
+        const leaf = new THREE.Mesh(new THREE.ConeGeometry(3.9, 4.5, 6), leafMat);
+        leaf.position.set(
+            Math.sin(angle) * 2.4,
+            y + 11 + Math.random() * 1,
+            Math.cos(angle) * 2.4
+        );
+        leaf.rotation.x = Math.PI / 2.1;
+        leaf.rotation.z = (Math.random() - 0.5) * 0.5;
+        treeGroup.add(leaf);
+    }
+
+    treeGroup.userData = {
+        health: 100,
+        isFalling: false,
+        fallAngle: 0,
+        fallDirection: new THREE.Vector3(),
+        removeTime: 0,
+        swayTime: Math.random() * 100,
+        shakeIntensity: 0
+    };
+
+    treeGroup.position.set(x, 0, z);
+    scene.add(treeGroup);
+    trees.push(treeGroup);
+    return treeGroup;
+}
+// Create stone (rock)
+function createStone(x, y, z) {
+    const stoneGroup = new THREE.Group();
+
+    // Main rock body
+    const stoneMat = new THREE.MeshStandardMaterial({
+        color: 0x777777,
+        roughness: 0.9
+    });
+
+    const size = 2.2 + Math.random() * 1.2;
+    const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(size, 1), stoneMat);
+    stone.position.set(0, y + size * 0.6, 0);
+    stone.rotation.set(Math.random() * 2, Math.random() * 2, Math.random() * 2);
+    stoneGroup.add(stone);
+
+    // Smaller rocks around base
+    for (let i = 0; i < 3; i++) {
+        const small = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(size * 0.45, 0),
+            stoneMat
+        );
+        small.position.set(
+            (Math.random() - 0.5) * 2.5,
+            y + size * 0.3,
+            (Math.random() - 0.5) * 2.5
+        );
+        small.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+        stoneGroup.add(small);
+    }
+
+    stoneGroup.userData = {
+        health: 200,
+        isBeingMined: false,
+        lastMineTime: 0
+    };
+
+    stoneGroup.position.set(x, 0, z);
+    scene.add(stoneGroup);
+    stones.push(stoneGroup);
+
+    return stoneGroup;
+}
+// Spawn stones in EVERY chunk
+function spawnStonesInChunk(cx, cz) {
+    const key = `stones_${cx},${cz}`;
+    if (houseData.has(key)) return;
+
+    const worldOffsetX = cx * FLIGHT.chunkSize;
+    const worldOffsetZ = cz * FLIGHT.chunkSize;
+    const placedPositions = [];
+
+    // Spawn 2-4 stones per chunk
+    const numStones = Math.random() < 0.4 ? 3 : 2;
+
+    for (let i = 0; i < numStones; i++) {
+        let attempts = 0;
+        let placed = false;
+
+        while (attempts < 25 && !placed) {
+            attempts++;
+
+            const localX = (Math.random() - 0.5) * (FLIGHT.chunkSize - 50);
+            const localZ = (Math.random() - 0.5) * (FLIGHT.chunkSize - 50);
+
+            const worldX = worldOffsetX + localX;
+            const worldZ = worldOffsetZ + localZ;
+
+            const { height } = getTerrainHeightAndBiome(worldX, worldZ);
+
+            if (height <= FLIGHT.waterLevel + 2) continue;
+
+            // Check distance from other stones
+            let tooClose = false;
+            for (const pos of placedPositions) {
+                if (Math.hypot(worldX - pos.x, worldZ - pos.z) < STONE_MIN_DISTANCE * 2) {
+                    tooClose = true;
+                    break;
+                }
+            }
+
+            if (!tooClose) {
+                createStone(worldX, height, worldZ);
+                placedPositions.push({ x: worldX, z: worldZ });
+                placed = true;
+            }
+        }
+    }
+
+    houseData.set(key, true);
+}
+function spawnTreesInChunk(cx, cz) {
+    const key = `trees_${cx},${cz}`;
+    if (houseData.has(key)) return;
+
+    const centerBiome = getTerrainHeightAndBiome(
+        cx * FLIGHT.chunkSize + FLIGHT.chunkSize/2,
+        cz * FLIGHT.chunkSize + FLIGHT.chunkSize/2
+    ).biome;
+
+    if (centerBiome === 'taiga') return;
+
+    const worldOffsetX = cx * FLIGHT.chunkSize;
+    const worldOffsetZ = cz * FLIGHT.chunkSize;
+    const placedPositions = [];
+
+    for (let i = 0; i < 3; i++) {
+        let attempts = 0;
+        let placed = false;
+
+        while (attempts < 20 && !placed) {
+            attempts++;
+
+            const localX = (Math.random() - 0.5) * (FLIGHT.chunkSize - 40);
+            const localZ = (Math.random() - 0.5) * (FLIGHT.chunkSize - 40);
+
+            const worldX = worldOffsetX + localX;
+            const worldZ = worldOffsetZ + localZ;
+
+            const { height, biome } = getTerrainHeightAndBiome(worldX, worldZ);
+
+            if (height <= FLIGHT.waterLevel + 3 || biome === 'taiga') continue;
+
+            let tooClose = false;
+            for (const pos of placedPositions) {
+                if (Math.hypot(worldX - pos.x, worldZ - pos.z) < TREE_MIN_DISTANCE * 2) {
+                    tooClose = true;
+                    break;
+                }
+            }
+
+            if (!tooClose) {
+                createPalmTree(worldX, height, worldZ);
+                placedPositions.push({ x: worldX, z: worldZ });
+                placed = true;
+            }
+        }
+    }
+
+    houseData.set(key, true);
+}
+function updateHunters(delta) {
+    const now = Date.now();
+
+    for (let i = hunters.length - 1; i >= 0; i--) {
+        const h = hunters[i];
+        if (!h || !h.userData) continue;
+
+        const data = h.userData;
+
+        const dx = camera.position.x - h.position.x;
+        const dz = camera.position.z - h.position.z;
+        const dist = Math.hypot(dx, dz);
+
+        // Chase player if close
+        if (dist < 80 && dist > 3) {
+            const speed = 12;
+            h.position.x += (dx / dist) * speed * delta;
+            h.position.z += (dz / dist) * speed * delta;
+
+            // Face player
+            h.lookAt(camera.position.x, h.position.y + 3, camera.position.z);
+        }
+
+        // Hunter attacks player
+        if (dist < 4 && now - (data.lastAttack || 0) > 1200) {
+            if (now - (lastPlayerHitTime || 0) > 800) {
+                let finalDamage = damage;
+                if (hasDamageReduction) finalDamage = Math.floor(damage * 0.2);
+                playerHealth = Math.max(0, playerHealth - finalDamage);
+                lastPlayerHitTime = now;
+
+                const warning = document.getElementById('takeoffWarning');
+                warning.innerHTML = `🩸 HUNTER ATTACK! -1 HP`;
+                warning.style.opacity = '1';
+                warning.style.color = '#ff5555';
+                setTimeout(() => warning.style.opacity = '0', 900);
+            }
+            data.lastAttack = now;
+        }
+
+        // === NEW RAMMING ATTACK SYSTEM ===
+        // Damage = speedKmh / 2  (faster = more damage)
+        if (dist < 8 && keys['click'] && now - (lastAttackTime || 0) > 600) {
+            keys['click'] = false;
+            lastAttackTime = now;
+
+            const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
+            const speedKmh = horizontalSpeed * 3.6;
+            const damage = Math.max(1, Math.floor(speedKmh / 2));
+
+            data.health = (data.health || 5) - damage;
+
+            // Bleed effect
+            createBloodParticles(h.position.x, h.position.y + 3.5, h.position.z);
+
+            // Feedback message
+            const warning = document.getElementById('takeoffWarning');
+            warning.innerHTML = `💥 RAM HIT! -${damage} DMG (${data.health}/5)`;
+            warning.style.opacity = '1';
+            warning.style.color = speedKmh > 60 ? '#ff4444' : '#ffff66';
+
+            setTimeout(() => {
+                warning.style.opacity = '0';
+            }, 700);
+
+            if (data.health <= 0) {
+                scene.remove(h);
+                hunters.splice(i, 1);
+
+                const deathMsg = document.getElementById('takeoffWarning');
+                deathMsg.innerHTML = `💀 HUNTER DEFEATED!`;
+                deathMsg.style.opacity = '1';
+                deathMsg.style.color = '#aaffaa';
+                setTimeout(() => deathMsg.style.opacity = '0', 1400);
+            }
+        }
+    }
+}
+
+// Simple blood particles
+function createBloodParticles(x, y, z) {
+    for (let i = 0; i < 8; i++) {
+        const p = new THREE.Mesh(
+            new THREE.SphereGeometry(0.15, 4, 4),
+            new THREE.MeshStandardMaterial({ color: 0xaa0000 })
+        );
+        p.position.set(x, y, z);
+        p.userData = {
+            life: 1.2 + Math.random(),
+            vel: new THREE.Vector3(
+                (Math.random() - 0.5) * 12,
+                6 + Math.random() * 8,
+                (Math.random() - 0.5) * 12
+            )
+        };
+        scene.add(p);
+        bloodParticles.push(p);
+    }
+}
+
+function updateBloodParticles(delta) {
+    for (let i = bloodParticles.length - 1; i >= 0; i--) {
+        const p = bloodParticles[i];
+        p.userData.vel.y -= 25 * delta;
+        p.position.addScaledVector(p.userData.vel, delta);
+        p.userData.life -= delta;
+
+        if (p.userData.life <= 0) {
+            scene.remove(p);
+            bloodParticles.splice(i, 1);
+        }
+    }
+}
+// Wind sway + hit shake
+function updateTreeSway(delta) {
+    const time = performance.now() * 0.001;
+    for (let tree of trees) {
+        if (!tree || !tree.userData || tree.userData.isFalling) continue;
+        const data = tree.userData;
+
+        const sway = Math.sin(time * 1.2 + data.swayTime) * 0.035;
+        tree.rotation.z = sway;
+        tree.rotation.x = Math.sin(time * 0.9 + data.swayTime) * 0.025;
+
+        if (data.shakeIntensity > 0.01) {
+            const shakeX = (Math.random() - 0.5) * data.shakeIntensity * 0.15;
+            const shakeZ = (Math.random() - 0.5) * data.shakeIntensity * 0.15;
+            tree.rotation.z += shakeX;
+            tree.rotation.x += shakeZ;
+            data.shakeIntensity *= 0.92;
+        }
+    }
+}
+
+// Red screen flash when hitting tree
+function triggerScreenRedFlash() {
+    if (!screenFlashElement) {
+        screenFlashElement = document.createElement('div');
+        screenFlashElement.style.position = 'fixed';
+        screenFlashElement.style.top = '0';
+        screenFlashElement.style.left = '0';
+        screenFlashElement.style.width = '100%';
+        screenFlashElement.style.height = '100%';
+        screenFlashElement.style.background = 'rgba(255, 40, 40, 0.25)';
+        screenFlashElement.style.pointerEvents = 'none';
+        screenFlashElement.style.zIndex = '500';
+        screenFlashElement.style.opacity = '0';
+        document.body.appendChild(screenFlashElement);
+    }
+
+    screenFlashElement.style.transition = 'none';
+    screenFlashElement.style.opacity = '0.35';
+    setTimeout(() => {
+        if (screenFlashElement) screenFlashElement.style.opacity = '0';
+    }, 60);
+}
+
+// HP Bar functions
+function showTreeHPBar(tree) {
+    if (activeTreeHP && activeTreeHP.tree === tree) {
+        activeTreeHP.lastHitTime = Date.now();
+        return;
+    }
+
+    if (activeTreeHP && activeTreeHP.element) {
+        if (activeTreeHP.element.parentNode) activeTreeHP.element.parentNode.removeChild(activeTreeHP.element);
+    }
+
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.pointerEvents = 'none';
+    container.style.zIndex = '300';
+    container.style.width = '140px';
+    container.style.height = '18px';
+    container.style.background = 'rgba(0,0,0,0.7)';
+    container.style.border = '2px solid #ffee88';
+    container.style.borderRadius = '8px';
+    container.style.overflow = 'hidden';
+
+    const fill = document.createElement('div');
+    fill.style.height = '100%';
+    fill.style.width = '100%';
+    fill.style.background = 'linear-gradient(90deg, #00ff44, #ffdd00, #ff4444)';
+    fill.style.transition = 'width 0.2s';
+    container.appendChild(fill);
+
+    document.body.appendChild(container);
+
+    activeTreeHP = { tree, element: container, fill, lastHitTime: Date.now() };
+    updateTreeHPBarVisual();
+}
+
+function updateTreeHPBarVisual() {
+    if (!activeTreeHP || !activeTreeHP.element) return;
+
+    const tree = activeTreeHP.tree;
+    const data = tree.userData;
+
+    const worldPos = new THREE.Vector3(tree.position.x, tree.position.y + 13.5, tree.position.z);
+    worldPos.project(camera);
+
+    const x = (worldPos.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-worldPos.y * 0.5 + 0.5) * window.innerHeight - 40;
+
+    activeTreeHP.element.style.left = `${x - 70}px`;
+    activeTreeHP.element.style.top = `${y}px`;
+
+    const percent = Math.max(0, Math.floor((data.health / 100) * 100));
+    activeTreeHP.fill.style.width = `${percent}%`;
+}
+
+function updateActiveTreeHP() {
+    if (!activeTreeHP) return;
+    const now = Date.now();
+    if (now - activeTreeHP.lastHitTime > 5000) {
+        if (activeTreeHP.element && activeTreeHP.element.parentNode) {
+            activeTreeHP.element.parentNode.removeChild(activeTreeHP.element);
+        }
+        activeTreeHP = null;
+        return;
+    }
+    updateTreeHPBarVisual();
+}
+
+    // Flatten starting chunk into a nice runway
+    function flattenSpawnRunway() {
+        const key = `${spawnChunkX},${spawnChunkZ}`;
+        const data = chunks.get(key);
+        if (!data || !data.terrain) return;
+
+        const positions = data.terrain.geometry.attributes.position.array;
+        for (let i = 0; i < positions.length; i += 3) {
+            positions[i + 1] = 12;        // Flat height
+        }
+        data.terrain.geometry.attributes.position.needsUpdate = true;
+        data.terrain.geometry.computeVertexNormals();
+    }
+
+    // Spawn starter chest near spawn
+    function spawnStarterChest() {
+        const chestGeo = new THREE.BoxGeometry(4, 3, 6);
+        const chestMat = new THREE.MeshStandardMaterial({ color: 0x8B5A2B, roughness: 0.85 });
+        chestMesh = new THREE.Mesh(chestGeo, chestMat);
+
+        chestMesh.position.set(
+            spawnChunkX * FLIGHT.chunkSize + 45,
+            13,
+            spawnChunkZ * FLIGHT.chunkSize + 35
+        );
+
+        scene.add(chestMesh);
+
+        console.log("🏠 Starter chest spawned on runway!");
+    }
+    // Generate small villages / houses
+
+
+
+
+// ==================== INFINITE HOUSE SPAWNING ====================
+let houseData = new Map();   // key: "cx,cz" → array of houses in that chunk
+
+function generateHouses() {
+    // This is now called from createChunk() — no longer called once in init()
+    houses = []; // clear old reference if needed
+}
+
+function spawnHousesInChunk(cx, cz) {
+    const key = `${cx},${cz}`;
+
+    // Prevent spawning houses multiple times in the same chunk
+    if (houseData.has(key)) return;
+
+    const chunkHouses = [];
+    const worldOffsetX = cx * FLIGHT.chunkSize;
+    const worldOffsetZ = cz * FLIGHT.chunkSize;
+
+    // How many houses per chunk? (0–2 is nice and natural)
+    const numHouses = Math.random() < 0.35 ? 1 : (Math.random() < 0.12 ? 2 : 0);
+
+    for (let i = 0; i < numHouses; i++) {
+        // Random position inside this chunk
+        const localX = (Math.random() - 0.5) * (FLIGHT.chunkSize - 40);
+        const localZ = (Math.random() - 0.5) * (FLIGHT.chunkSize - 40);
+
+        const worldX = worldOffsetX + localX;
+        const worldZ = worldOffsetZ + localZ;
+
+        const { height } = getTerrainHeightAndBiome(worldX, worldZ);
+
+        // Only spawn on solid land, not too close to water
+        if (height > FLIGHT.waterLevel + 3) {
+            createSimpleHouse(worldX, height + 0.1, worldZ);
+            chunkHouses.push({x: worldX, z: worldZ});
+        }
+    }
+
+    if (chunkHouses.length > 0) {
+        houseData.set(key, chunkHouses);
+    }
+}
+
+    function createSimpleHouse(x, y, z) {
+        const houseGroup = new THREE.Group();
+
+        // Main wooden walls (brown)
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x8B5A2B, roughness: 0.9 });
+        const roofMat = new THREE.MeshStandardMaterial({ color: 0x4A2C1F, roughness: 0.8 });
+
+        // Base floor
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(10, 0.6, 10), wallMat);
+        floor.position.set(x, y + 0.3, z);
+        houseGroup.add(floor);
+
+        // Walls
+        const wall1 = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 0.6), wallMat);
+        wall1.position.set(x, y + 3.3, z + 5);
+        houseGroup.add(wall1);
+
+        const wall2 = wall1.clone();
+        wall2.position.set(x, y + 3.3, z - 5);
+        houseGroup.add(wall2);
+
+        const wall3 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 6, 10), wallMat);
+        wall3.position.set(x + 5, y + 3.3, z);
+        houseGroup.add(wall3);
+
+        const wall4 = wall3.clone();
+        wall4.position.set(x - 5, y + 3.3, z);
+        houseGroup.add(wall4);
+
+        // Roof
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(12, 1.5, 12), roofMat);
+        roof.position.set(x, y + 7, z);
+        roof.rotation.x = Math.PI / 4;
+        houseGroup.add(roof);
+
+        // Door opening (simple dark hole)
+        const door = new THREE.Mesh(new THREE.BoxGeometry(2.5, 4, 0.7), new THREE.MeshStandardMaterial({ color: 0x1a1a1a }));
+        door.position.set(x, y + 2.2, z + 5.1);
+        houseGroup.add(door);
+
+        scene.add(houseGroup);
+
+        // Spawn chest in front of the house
+        spawnHouseChest(x + 8, y + 1.5, z + 8);
+
+        houses.push(houseGroup);
+    }
+
+// ====================== LOW AETHER SPAWNING ======================
+
+// Spawn Low Aether structures per chunk at 10,000 meters
+// Spawn Low Aether - Floating Crystal Metropolis at 1500 meters
+function spawnLowAetherInChunk(cx, cz) {
+    const key = `aether_${cx},${cz}`;
+    if (houseData.has(key)) return;
+
+    const worldOffsetX = cx * FLIGHT.chunkSize;
+    const worldOffsetZ = cz * FLIGHT.chunkSize;
+
+    const numStructures = Math.random() < 0.45 ? 2 : 1;
+
+    for (let i = 0; i < numStructures; i++) {
+        const localX = (Math.random() - 0.5) * (FLIGHT.chunkSize - 100);
+        const localZ = (Math.random() - 0.5) * (FLIGHT.chunkSize - 100);
+
+        const worldX = worldOffsetX + localX;
+        const worldZ = worldOffsetZ + localZ;
+
+        // Changed to 1500 meters
+        const aetherY = 1500 + Math.random() * 120;   // 1500 – 1620m
+
+        createLowAetherTower(worldX, aetherY, worldZ);
+    }
+
+    houseData.set(key, true);
+}
+
+// Create floating crystal tower + possible enchanter
+function createLowAetherTower(x, y, z) {
+    const towerGroup = new THREE.Group();
+
+    // Main glowing crystal spire
+    const crystalMat = new THREE.MeshStandardMaterial({
+        color: 0x99eeff,
+        emissive: 0x4488ff,
+        emissiveIntensity: 0.9,
+        metalness: 0.95,
+        roughness: 0.1,
+        transparent: true,
+        opacity: 0.85
+    });
+
+    const mainSpire = new THREE.Mesh(new THREE.ConeGeometry(9, 65, 6), crystalMat);
+    mainSpire.position.set(x, y + 40, z);
+    mainSpire.rotation.y = Math.random() * Math.PI;
+    towerGroup.add(mainSpire);
+
+    // Floating rings/platforms
+    const platformMat = new THREE.MeshStandardMaterial({
+        color: 0xeeddff,
+        emissive: 0x6644aa,
+        metalness: 0.8
+    });
+
+    for (let i = 0; i < 4; i++) {
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(18 + i*3, 18 + i*3, 4, 32), platformMat);
+        ring.position.set(x, y + 18 + i * 14, z);
+        ring.rotation.x = Math.PI / 2;
+        towerGroup.add(ring);
+    }
+
+    // Golden top orb
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xffdd88, emissive: 0xaa8800, metalness: 1.0 });
+    const topOrb = new THREE.Mesh(new THREE.SphereGeometry(6, 16, 16), goldMat);
+    topOrb.position.set(x, y + 78, z);
+    towerGroup.add(topOrb);
+
+    towerGroup.userData = { isLowAetherTower: true };
+    scene.add(towerGroup);
+
+    // Spawn OP chest
+    spawnLowAetherChest(x, y + 82, z);
+
+    // 35% chance to spawn Enchanter nearby
+    if (Math.random() < 0.35) {
+        createAetherEnchanter(x + 32, y + 15, z + 28);
+    }
+
+    return towerGroup;
+}
+
+// Low Aether Chest with god-tier loot
+function spawnLowAetherChest(x, y, z) {
+    const chest = new THREE.Mesh(
+        new THREE.BoxGeometry(7, 6, 9),
+        new THREE.MeshStandardMaterial({
+            color: 0x112244,
+            emissive: 0x6688ff,
+            metalness: 0.9,
+            emissiveIntensity: 0.6
+        })
+    );
+    chest.position.set(x, y, z);
+    chest.userData = {
+        isLowAetherChest: true,
+        opened: false,
+        loot: {
+            aetherium: 15,
+            carbide: 32,
+            tungsten: 55,
+            jetFuel: 160,
+            planePart: 7,
+            enchantment: 1
+        }
+    };
+    scene.add(chest);
+}
+
+// Aether Enchanter building
+function createAetherEnchanter(x, y, z) {
+    const enchanter = new THREE.Group();
+
+    const platMat = new THREE.MeshStandardMaterial({
+        color: 0x99ccff,
+        emissive: 0x3366aa,
+        metalness: 0.9,
+        roughness: 0.2
+    });
+    const platform = new THREE.Mesh(new THREE.CylinderGeometry(14, 16, 4, 32), platMat);
+    platform.position.set(x, y + 6, z);
+    enchanter.add(platform);
+
+    const crystalMat = new THREE.MeshStandardMaterial({
+        color: 0xaaffff,
+        emissive: 0x66ccff,
+        emissiveIntensity: 1.2,
+        transparent: true,
+        opacity: 0.9
+    });
+    const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(7, 1), crystalMat);
+    crystal.position.set(x, y + 18, z);
+    enchanter.add(crystal);
+
+    enchanter.userData = {
+        isAetherEnchanter: true,
+        activated: false
+    };
+
+    scene.add(enchanter);
+    createEnchanterParticles(x, y + 18, z);
+
+    return enchanter;
+}
+
+// Particle glow
+function createEnchanterParticles(x, y, z) {
+    for (let i = 0; i < 14; i++) {
+        const particle = new THREE.Mesh(
+            new THREE.SphereGeometry(0.35 + Math.random() * 0.55, 6, 6),
+            new THREE.MeshStandardMaterial({
+                color: 0xaaccff,
+                emissive: 0x88eeff,
+                emissiveIntensity: 2.2
+            })
+        );
+
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 11 + Math.random() * 9;
+        particle.position.set(
+            x + Math.cos(angle) * radius,
+            y + Math.random() * 28 - 8,
+            z + Math.sin(angle) * radius
+        );
+
+        particle.userData = {
+            baseY: particle.position.y,
+            speed: 0.7 + Math.random() * 1.1,
+            offset: Math.random() * Math.PI * 2
+        };
+
+        scene.add(particle);
+    }
+}
+
+// Simple Global Enchanting - Just press K with ✨ item
+function tryApplyEnchantment() {
+    // Check if player has enchantment item
+    let hasEnchantItem = false;
+    let enchantSlotIndex = -1;
+
+    for (let i = 0; i < inventory.length; i++) {
+        if (inventory[i] && inventory[i].type === 'enchantment' && inventory[i].count > 0) {
+            hasEnchantItem = true;
+            enchantSlotIndex = i;
+            break;
+        }
+    }
+
+    if (!hasEnchantItem) {
+        const warning = document.getElementById('takeoffWarning');
+        warning.innerHTML = `❌ You need a ✨ Wing Enchantment item!`;
+        warning.style.opacity = '1';
+        warning.style.color = '#ff6666';
+        setTimeout(() => warning.style.opacity = '0', 2000);
+        return;
+    }
+
+    // Consume one enchantment item
+    if (enchantSlotIndex !== -1) {
+        inventory[enchantSlotIndex].count--;
+        if (inventory[enchantSlotIndex].count <= 0) {
+            inventory[enchantSlotIndex] = null;
+        }
+    }
+
+    // Apply random enchantment
+    const enchantType = Math.floor(Math.random() * 3);
+    let msg = "";
+    let color = "#ffffff";
+
+    if (enchantType === 0) {
+        hasGlideEnchant = true;
+        msg = `✨ GLIDE ENCHANT APPLIED — 100:1 GLIDE RATIO!`;
+        color = "#aaffff";
+    }
+    else if (enchantType === 1) {
+        hasDamageReduction = true;
+        msg = `✨ DAMAGE REDUCTION — TAKE ONLY 20% DAMAGE!`;
+        color = "#88ff88";
+    }
+    else {
+        hasFlapPower = true;
+        msg = `✨ FLAP POWER — 3G FORCE ON EVERY FLAP!`;
+        color = "#ffdd88";
+    }
+
+    const warning = document.getElementById('takeoffWarning');
+    warning.innerHTML = msg;
+    warning.style.opacity = '1';
+    warning.style.color = color;
+    setTimeout(() => warning.style.opacity = '0', 3200);
+
+    renderHotbar();
+    renderFullInventory();
+}
+
+// Use Enchanter with K key
+function interactWithEnchanter(enchanter) {
+    if (enchanter.userData.activated) return;
+
+    let hasEnchantItem = false;
+    for (let i = 0; i < inventory.length; i++) {
+        if (inventory[i] && inventory[i].type === 'enchantment' && inventory[i].count > 0) {
+            inventory[i].count--;
+            if (inventory[i].count <= 0) inventory[i] = null;
+            hasEnchantItem = true;
+            break;
+        }
+    }
+
+    if (!hasEnchantItem) {
+        const warning = document.getElementById('takeoffWarning');
+        warning.innerHTML = `❌ You need a ✨ Wing Enchantment item!`;
+        warning.style.opacity = '1';
+        warning.style.color = '#ff6666';
+        setTimeout(() => warning.style.opacity = '0', 2000);
+        return;
+    }
+
+    const enchantType = Math.floor(Math.random() * 3);
+    let msg = "";
+    let color = "#ffffff";
+
+    if (enchantType === 0) {
+        hasGlideEnchant = true;
+        msg = `✨ GLIDE ENCHANT: 100:1 GLIDE RATIO!`;
+        color = "#aaffff";
+    } else if (enchantType === 1) {
+        hasDamageReduction = true;
+        msg = `✨ DAMAGE REDUCTION: TAKE ONLY 20% DAMAGE!`;
+        color = "#88ff88";
+    } else {
+        hasFlapPower = true;
+        msg = `✨ FLAP POWER: 3G FORCE ON EVERY FLAP!`;
+        color = "#ffdd88";
+    }
+
+    const warning = document.getElementById('takeoffWarning');
+    warning.innerHTML = msg;
+    warning.style.opacity = '1';
+    warning.style.color = color;
+    setTimeout(() => warning.style.opacity = '0', 3200);
+
+    enchanter.userData.activated = true;
+
+    enchanter.children.forEach(child => {
+        if (child.material && child.material.emissive) {
+            child.material.emissiveIntensity = 3.5;
+        }
+    });
+
+    renderHotbar();
+    renderFullInventory();
+}
+
+// Altitude message
+function checkAetherAltitude() {
+    if (reachedAetherMessageShown) return;
+    if (camera.position.y > 1400) {                    // changed from 9000
+        reachedAetherMessageShown = true;
+        const warning = document.getElementById('takeoffWarning');
+        warning.innerHTML = `🌌 YOU FEEL THE PULL OF LOW AETHER...`;
+        warning.style.opacity = '1';
+        warning.style.color = '#bbddff';
+        setTimeout(() => warning.style.opacity = '0', 4500);
+    }
+}
+
+function updateTrees(delta) {
+    const now = Date.now();
+    updateTreeSway(delta);     // wind + shake
+
+    for (let i = trees.length - 1; i >= 0; i--) {
+        const tree = trees[i];
+        if (!tree || !tree.userData) continue;
+
+        const data = tree.userData;
+
+        const dx = camera.position.x - tree.position.x;
+        const dz = camera.position.z - tree.position.z;
+        const dist = Math.hypot(dx, dz);
+
+        // === RAMMING / CHOPPING TREE ===
+        if (dist < 9 && keys['click'] && now - (lastAttackTime || 0) > 500) {
+            keys['click'] = false;
+            lastAttackTime = now;
+
+            const speedKmh = Math.hypot(velocity.x, velocity.z) * 3.6;
+            const toolMult = getToolMultiplier();
+            const damage = Math.max(1, Math.floor(speedKmh / 2) * toolMult);
+
+            data.health = Math.max(0, (data.health || 100) - damage);
+
+            // Visual feedback
+            data.shakeIntensity = Math.min(1.0, speedKmh / 80);
+            triggerScreenRedFlash();
+            showTreeHPBar(tree);
+
+            // Player takes damage ONLY if not using tool
+            const selectedItem = inventory[selectedHotbar];
+            const isUsingTool = selectedItem && (selectedItem.type === 'wood' || selectedItem.type === 'axe');
+
+            if (speedKmh > 20 && !isUsingTool) {
+                let finalDamage = damage;
+                if (hasDamageReduction) finalDamage = Math.floor(damage * 0.2);
+                playerHealth = Math.max(0, playerHealth - finalDamage);
+                const warning = document.getElementById('takeoffWarning');
+                warning.innerHTML = `💥 TREE IMPACT! -10 HP`;
+                warning.style.opacity = '1';
+                warning.style.color = '#ff5555';
+                setTimeout(() => warning.style.opacity = '0', 1000);
+            }
+
+            // Tree falls when HP reaches 0
+            if (data.health <= 0 && !data.isFalling) {
+                data.isFalling = true;
+                data.fallDirection = new THREE.Vector3(dx, 0, dz).normalize();
+                data.removeTime = now + 30000;
+
+                addItemToInventory('wood', 60);
+
+                const msg = document.getElementById('takeoffWarning');
+                msg.innerHTML = `🌴 TREE CHOPPED! +60 WOOD`;
+                msg.style.opacity = '1';
+                msg.style.color = '#88ff88';
+                setTimeout(() => msg.style.opacity = '0', 1500);
+
+                if (activeTreeHP && activeTreeHP.tree === tree) {
+                    if (activeTreeHP.element && activeTreeHP.element.parentNode) {
+                        activeTreeHP.element.parentNode.removeChild(activeTreeHP.element);
+                    }
+                    activeTreeHP = null;
+                }
+            }
+        }
+
+        // Falling animation
+        if (data.isFalling) {
+            data.fallAngle += delta * 2.2;
+            if (data.fallAngle > Math.PI / 2) data.fallAngle = Math.PI / 2;
+
+            tree.rotation.z = data.fallDirection.x * data.fallAngle * 0.95;
+            tree.rotation.x = -data.fallDirection.z * data.fallAngle * 0.95;
+
+            if (now > data.removeTime) {
+                scene.remove(tree);
+                trees.splice(i, 1);
+            }
+        }
+    }
+}
+function updateStones(delta) {
+    const now = Date.now();
+
+    for (let i = stones.length - 1; i >= 0; i--) {
+        const stone = stones[i];
+        if (!stone || !stone.userData) continue;
+
+        const data = stone.userData;
+
+        const dx = camera.position.x - stone.position.x;
+        const dz = camera.position.z - stone.position.z;
+        const dist = Math.hypot(dx, dz);
+
+        // === MINING / RAMMING STONE ===
+        if (dist < 8 && keys['click'] && now - (lastAttackTime || 0) > 450) {
+            keys['click'] = false;
+            lastAttackTime = now;
+
+            const speedKmh = Math.hypot(velocity.x, velocity.z) * 3.6;
+            const toolMult = getToolMultiplier();
+            let damage = Math.max(1, Math.floor(speedKmh / 3) * toolMult);
+
+            const selectedItem = inventory[selectedHotbar];
+            const isUsingTool = selectedItem && (selectedItem.type === 'wood' || selectedItem.type === 'axe');
+
+            // Safe mining when using Wood or Axe
+            if (isUsingTool) {
+                damage = Math.max(8, damage);   // tools mine faster
+            } else {
+                // Ram damage to player
+                if (speedKmh > 25) {
+                    let finalDamage = damage;
+                    if (hasDamageReduction) finalDamage = Math.floor(damage * 0.2);
+                    playerHealth = Math.max(0, playerHealth - finalDamage);
+                    const warning = document.getElementById('takeoffWarning');
+                    warning.innerHTML = `💥 STONE IMPACT! -8 HP`;
+                    warning.style.opacity = '1';
+                    warning.style.color = '#ff5555';
+                    setTimeout(() => warning.style.opacity = '0', 900);
+                }
+            }
+
+            data.health = Math.max(0, data.health - damage);
+
+            // Feedback
+            const warning = document.getElementById('takeoffWarning');
+            warning.innerHTML = isUsingTool ?
+                `⛏️ MINING... (${data.health}/200)` :
+                `💥 RAMMED STONE! (${data.health}/200)`;
+            warning.style.opacity = '1';
+            warning.style.color = isUsingTool ? '#aaffaa' : '#ffcc66';
+            setTimeout(() => warning.style.opacity = '0', 700);
+
+            if (data.health <= 0) {
+                addItemToInventory('stone', 1);
+
+                const msg = document.getElementById('takeoffWarning');
+                msg.innerHTML = `🥌 STONE MINED! +1`;
+                msg.style.opacity = '1';
+                msg.style.color = '#dddddd';
+                setTimeout(() => msg.style.opacity = '0', 1200);
+
+                scene.remove(stone);
+                stones.splice(i, 1);
+            }
+        }
+    }
+}
+
+
+// ==================== ORE MINING SYSTEM ====================
+function updateOres(delta) {
+    const now = Date.now();
+
+    // Make a copy of children to avoid modification during traversal
+    const objectsToCheck = [];
+
+    scene.traverse((obj) => {
+        if (obj.userData && (obj.userData.type === 'iron' || obj.userData.type === 'tungsten')) {
+            objectsToCheck.push(obj);
+        }
+    });
+
+    for (let i = 0; i < objectsToCheck.length; i++) {
+        const obj = objectsToCheck[i];
+        if (!obj || !obj.userData) continue;
+
+        const dx = camera.position.x - obj.position.x;
+        const dz = camera.position.z - obj.position.z;
+        const dist = Math.hypot(dx, dz);
+
+        if (dist < 9 && keys['click'] && now - (lastAttackTime || 0) > 400) {
+            keys['click'] = false;
+            lastAttackTime = now;
+
+            const speedKmh = Math.hypot(velocity.x, velocity.z) * 3.6;
+            const toolMult = getToolMultiplier();
+            let damage = Math.max(1, Math.floor(speedKmh / 4) * toolMult);
+
+            const selectedItem = inventory[selectedHotbar];
+            const isUsingTool = selectedItem &&
+                (selectedItem.type === 'wood' ||
+                 selectedItem.type === 'axe' ||
+                 selectedItem.type === 'ironAxe' ||
+                 selectedItem.type === 'tungAxe' ||
+                 selectedItem.type === 'spear');
+
+            if (speedKmh > 25 && !isUsingTool) {
+                playerHealth = Math.max(0, playerHealth - 6);
+                const warning = document.getElementById('takeoffWarning');
+                warning.innerHTML = `💥 ORE IMPACT! -6 HP`;
+                warning.style.opacity = '1';
+                warning.style.color = '#ff5555';
+                setTimeout(() => warning.style.opacity = '0', 900);
+            }
+
+            obj.userData.health = (obj.userData.health || 300) - damage;
+
+            // Feedback
+            const warning = document.getElementById('takeoffWarning');
+            warning.innerHTML = `⛏️ MINING... (${Math.max(0, Math.ceil(obj.userData.health))} HP)`;
+            warning.style.opacity = '1';
+            warning.style.color = '#aaffaa';
+            setTimeout(() => warning.style.opacity = '0', 600);
+
+            if (obj.userData.health <= 0) {
+                const oreType = obj.userData.type;
+                const dropAmount = 1;
+
+                addItemToInventory(oreType, dropAmount);
+
+                const msg = document.getElementById('takeoffWarning');
+                msg.innerHTML = oreType === 'iron' ?
+                    `⛏️ IRON ORE MINED! +1` :
+                    `⚒️ TUNGSTEN ORE MINED! +1`;
+                msg.style.opacity = '1';
+                msg.style.color = '#dddddd';
+                setTimeout(() => msg.style.opacity = '0', 1400);
+
+                // Safe removal
+                scene.remove(obj);
+            }
+        }
+    }
+}
+    // Spawn chest for each house
+    function spawnHouseChest(x, y, z) {
+        const chestGeo = new THREE.BoxGeometry(4, 3, 6);
+        const chestMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+        const chest = new THREE.Mesh(chestGeo, chestMat);
+        chest.position.set(x, y, z);
+        scene.add(chest);
+
+        // Store reference if needed later
+        chest.userData = { isHouseChest: true, flaps: 128 };
+    }
+
+
+
+        // ==================== DAY / NIGHT CYCLE ====================
+    function updateDayNight(delta) {
+        dayTime = (dayTime + delta / DAY_LENGTH) % 1;
+        isNight = dayTime < 0.25 || dayTime > 0.75;   // Night = 50% of time
+
+        // Change sky & lighting
+        const nightFactor = isNight ? 0.15 : 1.0;
+        scene.background = new THREE.Color().setHSL(0.6, 0.4, 0.6 * nightFactor + 0.1);
+
+        if (sunLight) {
+            sunLight.intensity = isNight ? 0.2 : 1.3;
+            sunLight.color.setHSL(0.1, 0.8, isNight ? 0.3 : 1.0);
+        }
+        if (hemiLight) {
+            hemiLight.intensity = isNight ? 0.3 : 0.7;
+        }
+
+        // Debug
+        document.getElementById('debugInfo').innerHTML = `🌍 CHUNKS: ${chunks.size} | ${isNight ? '🌑 NIGHT' : '☀️ DAY'}`;
+    }
+
+    // Create a hunter (tall dark figure with red eyes)
+    function createHunter(x, y, z) {
+        const hunterGroup = new THREE.Group();
+
+        // Body
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+        const body = new THREE.Mesh(new THREE.BoxGeometry(2, 5, 2), bodyMat);
+        body.position.y = y + 2.5;
+        hunterGroup.add(body);
+
+        // Head
+        const headMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+        const head = new THREE.Mesh(new THREE.SphereGeometry(1.1, 8, 8), headMat);
+        head.position.set(0, y + 5.8, 0);
+        hunterGroup.add(head);
+
+        // Glowing red eyes
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff0000, emissiveIntensity: 0.8 });
+        const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.25, 6, 6), eyeMat);
+        eyeL.position.set(-0.4, y + 5.9, 0.9);
+        hunterGroup.add(eyeL);
+        const eyeR = eyeL.clone();
+        eyeR.position.x = 0.4;
+        hunterGroup.add(eyeR);
+
+        hunterGroup.userData = {
+            health: 5,
+            lastAttack: 0,
+            velocity: new THREE.Vector3()
+        };
+
+        hunterGroup.position.set(x, y, z);
+        scene.add(hunterGroup);
+        hunters.push(hunterGroup);
+
+        return hunterGroup;
+    }
+
+    // Spawn hunter in a chunk (only at night)
+    function spawnHunterInChunk(cx, cz) {
+        if (!isNight) return;
+
+        const key = `hunter_${cx},${cz}`;
+        if (houseData.has(key)) return;   // reuse houseData map or make new one
+
+        const worldOffsetX = cx * FLIGHT.chunkSize;
+        const worldOffsetZ = cz * FLIGHT.chunkSize;
+
+        const localX = (Math.random() - 0.5) * (FLIGHT.chunkSize - 60);
+        const localZ = (Math.random() - 0.5) * (FLIGHT.chunkSize - 60);
+
+        const worldX = worldOffsetX + localX;
+        const worldZ = worldOffsetZ + localZ;
+        const { height } = getTerrainHeightAndBiome(worldX, worldZ);
+
+        if (height > FLIGHT.waterLevel + 4) {
+            createHunter(worldX, height + 1, worldZ);
+            houseData.set(key, true);   // mark as spawned
+        }
+    }
+
+    function updateChunks() {
+        const cx = Math.floor(camera.position.x / FLIGHT.chunkSize);
+        const cz = Math.floor(camera.position.z / FLIGHT.chunkSize);
+        const keep = new Set();
+        for (let dx = -FLIGHT.renderDist; dx <= FLIGHT.renderDist; dx++) {
+            for (let dz = -FLIGHT.renderDist; dz <= FLIGHT.renderDist; dz++) {
+                const key = `${cx+dx},${cz+dz}`;
+                keep.add(key);
+                if (!chunks.has(key)) createChunk(cx+dx, cz+dz);
+            }
+        }
+        for (let [key, data] of chunks) {
+            if (!keep.has(key)) {
+                scene.remove(data.terrain);
+                if (data.grass) scene.remove(data.grass);
+                chunks.delete(key);
+            }
+        }
+        document.getElementById('debugInfo').innerHTML = `🌍 CHUNKS: ${chunks.size}`;
+    }
+
+    function createWaterAndClouds() {
+        waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000, 64, 64).rotateX(-Math.PI/2),
+            new THREE.MeshStandardMaterial({ color: '#3399dd', metalness: 0.7, roughness: 0.3, transparent: true, opacity: 0.6 }));
+        waterMesh.position.y = FLIGHT.waterLevel;
+        scene.add(waterMesh);
+
+        cloudsGroup = new THREE.Group();
+        const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, transparent: true, opacity: 0.7 });
+        for (let i = 0; i < 20; i++) {
+            let c = new THREE.Mesh(new THREE.SphereGeometry(14 + Math.random() * 24, 5, 5), cloudMat);
+            c.position.set((Math.random() - 0.5) * 1800, 100 + Math.random() * 70, (Math.random() - 0.5) * 1800);
+            c.scale.set(2.0, 0.55, 1.5);
+            cloudsGroup.add(c);
+        }
+        scene.add(cloudsGroup);
+    }
+
+function updatePhysics(delta) {
+    const { height: terrainH, biome } = getTerrainHeightAndBiome(camera.position.x, camera.position.z);
+
+    const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
+    const speedKmh = horizontalSpeed * 3.6;
+    const vertSpeedMs = velocity.y;
+    const pitchDegrees = Math.floor(pitch * 45);
+
+    const totalFlaps = getTotal('flap');
+    const totalJets  = getTotal('jet');
+
+    document.getElementById('speedValue').innerHTML = Math.floor(speedKmh);
+    document.getElementById('vertSpeed').innerHTML = vertSpeedMs.toFixed(1);
+    document.getElementById('altDisplay').innerHTML = `⬆️ ALT: ${Math.floor(camera.position.y - terrainH)} m`;
+    document.getElementById('flapCountDisplay').innerHTML = totalFlaps;
+    document.getElementById('flapCount').innerHTML = totalFlaps;
+    document.getElementById('jetCountDisplay').innerHTML = totalJets;
+    document.getElementById('flapFill').style.width = `${Math.min(100, totalFlaps / 9 * 100)}%`;
+    document.getElementById('pitchAngle').innerHTML = pitchDegrees;
+
+    thermalStrength = 0;
+    if (!isOnGround && camera.position.y < 1200) {
+        const thermalNoise = perlin3D(camera.position.x * 0.025, camera.position.z * 0.025, 0);
+        if (thermalNoise > 0.48) {
+            thermalStrength = FLIGHT.thermalLift * (thermalNoise - 0.4) * 2.2;
+            if (camera.position.y > 400) thermalStrength *= 1.6;
+        }
+    }
+    document.getElementById('thermalValue').innerHTML = thermalStrength > 0.5 ? `⬆️ ${thermalStrength.toFixed(1)}` : 'NONE';
+
+    // ==================== IMPROVED DIVING PHYSICS ====================
+    let glideRatioMod = 1.0;
+    let extraDiveForce = 0;
+    let airDragMod = 1.0;
+    let forwardBoost = 0;
+
+    if (playerWingFold === 1) {           // Partially folded - good dive
+        glideRatioMod = 0.65;
+        extraDiveForce = 0;
+        airDragMod = 1.001;                // Less drag = keeps speed better
+        forwardBoost = 0;
+    }
+    else if (playerWingFold === 2) {      // Fully folded - aggressive dive
+        glideRatioMod = 0.35;
+        extraDiveForce = 0;
+        airDragMod = 1.002;                // Much less drag = speeds up fast
+        forwardBoost = 0;
+    }
+
+    // Calculate glide lift
+    let glideLift = 0;
+    if (!isOnGround && horizontalSpeed > 3) {
+        glideLift = horizontalSpeed / (FLIGHT.glideRatio * glideRatioMod);
+    }
+
+    // Apply dive force
+    if (playerWingFold > 0 && !isOnGround) {
+        velocity.y -= extraDiveForce * delta;
+    }
+
+    // Forward momentum boost when diving (this is what you wanted)
+    if (playerWingFold > 0 && !isOnGround) {
+        const forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        velocity.x += forwardDir.x * forwardBoost * delta;
+        velocity.z += forwardDir.z * forwardBoost * delta;
+    }
+
+    // FLAP
+    if (flapPressed && (Date.now() - lastFlapTime > 300) && !isOnGround) {
+        const slot = inventory[selectedHotbar];
+        if (slot && slot.type === 'flap' && slot.count > 0) {
+            slot.count--;
+            lastFlapTime = Date.now();
+
+            let flapForce = FLIGHT.flapForce;
+            if (hasFlapPower) flapForce = 38;
+
+            velocity.y += flapForce;
+
+            const forwardDir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+            velocity.x += forwardDir.x * 3.0;
+            velocity.z += forwardDir.z * 3.0;
+
+            // === SCREEN VIBRATION ON FLAP ===
+            screenShake = Math.max(screenShake, 1.8);   // strong flap shake
+
+            renderHotbar();
+            renderFullInventory();
+        }
+    }
+
+    // FLAP REGEN, JET, etc. stay the same...
+    if (spaceHeld && !isOnGround) {
+        flapRegenTimer += delta;
+        if (flapRegenTimer >= 4.5) {
+            flapRegenTimer = 0;
+            for (let i = 0; i < inventory.length; i++) {
+                const slot = inventory[i];
+                if (slot && slot.type === 'flap' && slot.count < ITEM_DB.flap.maxStack) {
+                    slot.count++;
+                    renderHotbar();
+                    renderFullInventory();
+                    break;
+                }
+            }
+        }
+    } else flapRegenTimer = 0;
+
+    // JET boost
+    const now = Date.now();
+    const isBoosting = now < jetBoostEndTime;
+    if (jetPressed && !isOnGround && !isBoosting) {
+        const slot = inventory[selectedHotbar];
+        if (slot && slot.type === 'jet' && slot.count > 0) {
+            slot.count--;
+            jetBoostEndTime = now + FLIGHT.jetDuration * 1000;
+            const boostDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+            velocity.addScaledVector(boostDir, 12);
+            renderHotbar();
+            renderFullInventory();
+            jetPressed = false;
+        }
+    }
+    if (isBoosting) {
+        const boostDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+        velocity.addScaledVector(boostDir, FLIGHT.jetBoostAccel * delta);
+    }
+
+    // Final lift and drag
+    let netLift = FLIGHT.gravity + glideLift + thermalStrength;
+    velocity.y += netLift * delta;
+
+    // Much less drag when diving = keeps and gains speed
+    velocity.x *= FLIGHT.airDrag * airDragMod;
+    velocity.z *= FLIGHT.airDrag * airDragMod;
+
+    if (!isOnGround && speedKmh < FLIGHT.minAirSpeed) velocity.y -= 3 * delta;
+
+    if (isOnGround) {
+        if (move.forward && spaceHeld) {
+            takeoffRunSpeed += FLIGHT.groundAccel * delta;
+            takeoffRunSpeed = Math.min(takeoffRunSpeed, FLIGHT.takeoffSpeed + 5);
+            const runDir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+            velocity.x = runDir.x * (takeoffRunSpeed / 3.6);
+            velocity.z = runDir.z * (takeoffRunSpeed / 3.6);
+            const warning = document.getElementById('takeoffWarning');
+            if (takeoffRunSpeed >= FLIGHT.takeoffSpeed) warning.style.opacity = '0';
+            else if (takeoffRunSpeed > 15) {
+                warning.style.opacity = '0.8';
+                warning.innerHTML = `🏃 RUNNING: ${Math.floor(takeoffRunSpeed)}/${FLIGHT.takeoffSpeed} km/h 🏃`;
+            } else warning.style.opacity = '0.5';
+        } else {
+            takeoffRunSpeed *= 0.96;
+            velocity.x *= 0.96;
+            velocity.z *= 0.96;
+            document.getElementById('takeoffWarning').style.opacity = '0';
+        }
+
+        if (takeoffRunSpeed >= FLIGHT.takeoffSpeed && spaceHeld && move.forward) {
+            isOnGround = false;
+            velocity.y = 7.0;
+            takeoffRunSpeed = 0;
+            document.getElementById('takeoffWarning').innerHTML = '🚀 LIFT OFF! 🚀';
+            document.getElementById('takeoffWarning').style.opacity = '1';
+            setTimeout(() => {
+                document.getElementById('takeoffWarning').style.opacity = '0';
+                document.getElementById('takeoffWarning').innerHTML = '🏃‍♂️ RUN TO 28 KM/H TO TAKE OFF! HOLD W + SPACE 🏃‍♂️';
+            }, 1500);
+        }
+    }
+
+    isGliding = spaceHeld && !isOnGround;
+
+    if (isOnGround) {
+        const moveDir = new THREE.Vector3();
+        if (move.forward) moveDir.z -= 1;
+        if (move.backward) moveDir.z += 1;
+        if (move.left) moveDir.x -= 1;
+        if (move.right) moveDir.x += 1;
+        if (moveDir.length() > 0) moveDir.normalize();
+        const forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        const rightDir = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        let horiz = new THREE.Vector3().addScaledVector(forwardDir, -moveDir.z).addScaledVector(rightDir, moveDir.x);
+        horiz.y = 0;
+        if (horiz.length() > 0) horiz.normalize();
+        const targetSpeed = 20;
+        const targetVelX = horiz.x * targetSpeed;
+        const targetVelZ = horiz.z * targetSpeed;
+        const steering = 4.5;
+        velocity.x += (targetVelX - velocity.x) * steering * delta;
+        velocity.z += (targetVelZ - velocity.z) * steering * delta;
+    } else {
+        const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+        const currentSpeed = velocity.length();
+        if (currentSpeed > 0.5) {
+            const targetVel = lookDir.multiplyScalar(currentSpeed);
+            velocity.lerp(targetVel, FLIGHT.alignmentStrength);
+        }
+    }
+
+    camera.position.x += velocity.x * delta;
+    camera.position.z += velocity.z * delta;
+    camera.position.y += velocity.y * delta;
+
+    // ==================== GROUND + CLOUD COLLISION ====================
+    const wasOnGround = isOnGround;
+    let onSurface = false;
+
+    // Ground collision
+    if (camera.position.y - 1.3 <= terrainH) {
+        camera.position.y = terrainH + 1.3;
+        velocity.y = 0;
+        onSurface = true;
+    }
+
+    // Cloud layer collision
+    if (!onSurface && velocity.y < 0 && cloudPlatforms) {
+        for (let platform of cloudPlatforms) {
+            const px = platform.position.x;
+            const pz = platform.position.z;
+            const py = platform.position.y;
+
+            const distX = Math.abs(camera.position.x - px);
+            const distZ = Math.abs(camera.position.z - pz);
+
+            if (distX < 30 && distZ < 30) {
+                if (camera.position.y - 1.3 <= py && camera.position.y > py - 15) {
+                    camera.position.y = py + 1.3;
+                    velocity.y = 0;
+                    onSurface = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    isOnGround = onSurface;
+    updateWaterPhysics(delta);
+
+    if (wasOnGround === false && isOnGround === true) {
+        checkCrashDamage();
+    }
+
+    if (camera.position.y > 2000) {
+        camera.position.y = 2000;
+        velocity.y = Math.min(velocity.y, 0);
+    }
+
+    let status = isOnGround ? '🪹 GROUNDED' : (isBoosting ? '🚀 JET BOOSTING' : (isGliding ? '🕊️ GLIDING' : '🌀 FLYING'));
+    if (isOnGround && move.forward && spaceHeld && takeoffRunSpeed > 0) {
+        status = `🏃 TAKEOFF (${Math.floor(takeoffRunSpeed)}/${FLIGHT.takeoffSpeed} km/h)`;
+    }
+    document.getElementById('flightStatus').innerHTML = status;
+    document.getElementById('biomeTag').innerHTML = biome.toUpperCase();
+}
+
+function updateHealth(delta) {
+    const now = Date.now();
+
+    // Passive regeneration: +1 HP every second
+    if (now - lastRegenTime >= 1000) {
+        if (playerHealth < MAX_HEALTH) {
+            playerHealth = Math.min(MAX_HEALTH, playerHealth + 1);
+        }
+        lastRegenTime = now;
+    }
+
+    // Update UI
+    const healthPercent = (playerHealth / MAX_HEALTH) * 100;
+    const healthFill = document.getElementById('healthFill');
+    const healthText = document.getElementById('healthText');
+
+    healthFill.style.width = healthPercent + '%';
+    healthText.innerHTML = Math.floor(playerHealth) + " / 150";
+
+    // Low health warning color
+    if (playerHealth < 40) {
+        healthFill.style.background = 'linear-gradient(90deg, #ff0000, #ff8800)';
+    } else {
+        healthFill.style.background = 'linear-gradient(90deg, #ff5555, #ffaa77)';
+    }
+}
+function checkCrashDamage() {
+    const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
+    const speedKmh = horizontalSpeed * 3.6;
+
+    // New logic: Only damage if going faster than 60 km/h
+    if (speedKmh > 60) {
+        const damage = Math.max(1, Math.floor((speedKmh - 60) / 2));
+
+        playerHealth = Math.max(0, playerHealth - damage);
+
+        // Visual feedback
+        const warning = document.getElementById('takeoffWarning');
+        warning.innerHTML = `💥 HARD LANDING! -${damage} HP`;
+        warning.style.opacity = '1';
+        warning.style.borderColor = '#ff0000';
+        warning.style.color = '#ff5555';
+
+        setTimeout(() => {
+            warning.style.opacity = '0';
+        }, 1800);
+
+        console.log(`💥 Crash damage: ${damage} HP at ${Math.floor(speedKmh)} km/h`);
+    }
+}
+
+        // Update UI
+        const healthPercent = (playerHealth / MAX_HEALTH) * 100;   // ← DELETE THIS BLOCK
+        document.getElementById('healthFill').style.width = healthPercent + '%';
+        document.getElementById('healthText').innerHTML = Math.floor(playerHealth) + " / 150";
+
+        // Visual warning when low
+        if (playerHealth < 40) {
+            document.getElementById('healthFill').style.background = 'linear-gradient(90deg, #ff0000, #ff8800)';
+        } else {
+            document.getElementById('healthFill').style.background = 'linear-gradient(90deg, #ff5555, #ffaa77)';
+        }
+
+    let sunLight, hemiLight;
+
+function openChest(chest, flapAmount) {
+    if (chest.userData && chest.userData.opened) return;
+
+    chest.userData.opened = true;
+
+    addItemToInventory('flap', flapAmount);
+
+    const warning = document.getElementById('takeoffWarning');
+    warning.innerHTML = `🎁 CHEST OPENED! +${flapAmount} FLAPS`;
+    warning.style.opacity = '1';
+    warning.style.color = '#aaffaa';
+
+    setTimeout(() => {
+        warning.style.opacity = '0';
+    }, 2200);
+
+    // Lift the lid
+    if (chest.children && chest.children.length > 0) {
+        chest.children[0].position.y += 2;
+    }
+}
+
+// Show prompt
+function showOpenPrompt() {
+    const warning = document.getElementById('takeoffWarning');
+    warning.innerHTML = `🪵 PRESS E TO OPEN CHEST`;
+    warning.style.opacity = '1';
+    warning.style.color = '#ffdd88';
+}
+
+
+
+// Improved addItemToInventory
+function addItemToInventory(type, count) {
+    if (!ITEM_DB[type]) {
+        console.warn(`Unknown item type: ${type}`);
+        return;
+    }
+
+    // Try to stack first
+    for (let i = 0; i < inventory.length; i++) {
+        if (inventory[i] && inventory[i].type === type) {
+            const maxStack = ITEM_DB[type].maxStack;
+            const canAdd = maxStack - inventory[i].count;
+            if (canAdd > 0) {
+                const addAmount = Math.min(count, canAdd);
+                inventory[i].count += addAmount;
+                count -= addAmount;
+                if (count <= 0) {
+                    renderHotbar();
+                    renderFullInventory();
+                    return;
+                }
+            }
+        }
+    }
+
+    // Find empty slot
+    for (let i = 0; i < inventory.length; i++) {
+        if (!inventory[i]) {
+            inventory[i] = { type: type, count: count };
+            renderHotbar();
+            renderFullInventory();
+            return;
+        }
+    }
+
+    // Inventory full
+    const warning = document.getElementById('takeoffWarning');
+    warning.innerHTML = `❌ INVENTORY FULL!`;
+    warning.style.opacity = '1';
+    warning.style.color = '#ff6666';
+    setTimeout(() => warning.style.opacity = '0', 2000);
+}
+function openSkyChest(chest) {
+    if (!chest || !chest.userData || chest.userData.opened) return;
+
+    chest.userData.opened = true;
+
+    addItemToInventory('carbon', chest.userData.carbon || 64);
+    addItemToInventory('jet', chest.userData.jet || 30);
+    addItemToInventory('tungsten', chest.userData.tungsten || 2);
+
+    const warning = document.getElementById('takeoffWarning');
+    warning.innerHTML = `☁️ SKY CHEST OPENED! +64 Carbon, +30 Jet, +2 Tungsten`;
+    warning.style.opacity = '1';
+    warning.style.color = '#88ffdd';
+    setTimeout(() => warning.style.opacity = '0', 2500);
+
+    // Simple open animation
+    if (chest.children && chest.children.length > 0) {
+        chest.children[0].position.y += 2;
+    }
+}
+
+function checkChestInteraction() {
+    if (!scene) return;
+
+    let nearAnyChest = false;
+
+    // Starter Chest
+    if (chestMesh) {
+        const dist = camera.position.distanceTo(chestMesh.position);
+        if (dist < 25) {
+            nearAnyChest = true;
+            const warning = document.getElementById('takeoffWarning');
+            warning.innerHTML = `🪵 PRESS E TO OPEN STARTER CHEST`;
+            warning.style.opacity = '1';
+            warning.style.color = '#ffdd88';
+
+            if (keys['e']) {
+                openChest(chestMesh, 60);
+                keys['e'] = false;
+            }
+        }
+    }
+
+    // House Chests
+    scene.traverse((obj) => {
+        if (obj.userData && obj.userData.isHouseChest) {
+            const dist = camera.position.distanceTo(obj.position);
+            if (dist < 25) {
+                nearAnyChest = true;
+                const warning = document.getElementById('takeoffWarning');
+                warning.innerHTML = `🪵 PRESS E TO OPEN CHEST`;
+                warning.style.opacity = '1';
+                warning.style.color = '#ffdd88';
+
+                if (keys['e']) {
+                    openChest(obj, 128);
+                    keys['e'] = false;
+                }
+            }
+        }
+    });
+
+    // Sky Chests
+    scene.traverse((obj) => {
+        if (obj.userData && obj.userData.isSkyChest && !obj.userData.opened) {
+            const dist = camera.position.distanceTo(obj.position);
+            if (dist < 12) {
+                nearAnyChest = true;
+                const warning = document.getElementById('takeoffWarning');
+                warning.innerHTML = `☁️ PRESS E TO OPEN SKY CHEST`;
+                warning.style.opacity = '1';
+                warning.style.color = '#88ccff';
+
+                if (keys['e']) {
+                    openSkyChest(obj);
+                    keys['e'] = false;
+                }
+            }
+        }
+    });
+
+    // Iron Peaks Chests
+    scene.traverse((obj) => {
+        if (obj.userData && obj.userData.isIronPeaksChest && !obj.userData.opened) {
+            const dist = camera.position.distanceTo(obj.position);
+            if (dist < 12) {
+                nearAnyChest = true;
+                const warning = document.getElementById('takeoffWarning');
+                warning.innerHTML = `🏔️ PRESS E TO OPEN IRON PEAKS CHEST`;
+                warning.style.opacity = '1';
+                warning.style.color = '#ffcc88';
+
+                if (keys['e']) {
+                    openIronPeaksChest(obj);
+                    keys['e'] = false;
+                }
+            }
+        }
+    });
+
+    // Low Aether Chests
+    scene.traverse((obj) => {
+        if (obj.userData && obj.userData.isLowAetherChest && !obj.userData.opened) {
+            const dist = camera.position.distanceTo(obj.position);
+            if (dist < 14) {
+                nearAnyChest = true;
+                const warning = document.getElementById('takeoffWarning');
+                warning.innerHTML = `🌌 PRESS E TO OPEN LOW AETHER CHEST`;
+                warning.style.opacity = '1';
+                warning.style.color = '#aaccff';
+
+                if (keys['e']) {
+                    openLowAetherChest(obj);
+                    keys['e'] = false;
+                }
+            }
+        }
+    });
+
+
+
+    // Hide prompt when not near any chest
+    if (!nearAnyChest) {
+        const warning = document.getElementById('takeoffWarning');
+        if (warning.innerHTML.includes("PRESS E") || warning.innerHTML.includes("PRESS K")) {
+            warning.style.opacity = '0';
+        }
+    }
+}
+function openLowAetherChest(chest) {
+    if (!chest || !chest.userData || chest.userData.opened) return;
+    chest.userData.opened = true;
+
+    const loot = chest.userData.loot;
+    addItemToInventory('aetherium', loot.aetherium);
+    addItemToInventory('carbide', loot.carbide);
+    addItemToInventory('tungsten', loot.tungsten);
+    addItemToInventory('jetFuel', loot.jetFuel);
+    addItemToInventory('planePart', loot.planePart);
+    addItemToInventory('enchantment', loot.enchantment);
+
+    const warning = document.getElementById('takeoffWarning');
+    warning.innerHTML = `🌌 LOW AETHER CHEST OPENED — GOD TIER LOOT!`;
+    warning.style.opacity = '1';
+    warning.style.color = '#ffccff';
+    setTimeout(() => warning.style.opacity = '0', 3200);
+}
+
+function openIronPeaksChest(chest) {
+    if (!chest || !chest.userData || chest.userData.opened) return;
+
+    chest.userData.opened = true;
+
+    const loot = chest.userData.loot;
+
+    addItemToInventory('iron', loot.iron);
+    addItemToInventory('jetFuel', loot.jetFuel);
+    addItemToInventory('tungsten', loot.tungsten);
+    addItemToInventory('carbide', loot.carbide);
+    addItemToInventory('planePart', loot.planePart);
+    addItemToInventory('skyMap', loot.skyMap);
+
+    const warning = document.getElementById('takeoffWarning');
+    warning.innerHTML = `🏔️ IRON PEAKS CHEST OPENED! Massive loot!`;
+    warning.style.opacity = '1';
+    warning.style.color = '#ffdd88';
+    setTimeout(() => warning.style.opacity = '0', 2800);
+
+    // Open animation
+    if (chest.children && chest.children.length > 0) {
+        chest.children[0].position.y += 3;
+    }
+}
+
+
+
+    function init() {
+    initPerlin();
+    initTextures();
+    clock = new THREE.Clock();
+    scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x88aaff, 0.0015);
+    scene.background = new THREE.Color(0x88aaff);
+
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.3, 2600);
+    camera.position.set(25, 45, 60);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    hemiLight = new THREE.HemisphereLight(0xaaccff, 0x446644, 0.7);
+    scene.add(hemiLight);
+    sunLight = new THREE.DirectionalLight(0xffeedd, 1.3);
+    sunLight.position.set(100, 150, 80);
+    scene.add(sunLight);
+
+
+    createWaterAndClouds();
+
+    // === SPAWN RUNWAY SYSTEM ===
+    spawnChunkX = Math.floor(camera.position.x / FLIGHT.chunkSize);
+    spawnChunkZ = Math.floor(camera.position.z / FLIGHT.chunkSize);
+
+    for (let dx = -FLIGHT.renderDist; dx <= FLIGHT.renderDist; dx++) {
+        for (let dz = -FLIGHT.renderDist; dz <= FLIGHT.renderDist; dz++) {
+            createChunk(spawnChunkX + dx, spawnChunkZ + dz);
+        }
+    }
+
+    // Make starting chunk flat like a runway
+    flattenSpawnRunway();
+    spawnHunterBase();   // ← ADD THIS
+
+    // Spawn chest with starter loot
+    spawnStarterChest();
+
+    initInventory();
+    renderHotbar();
+
+    renderer.domElement.addEventListener('click', () => renderer.domElement.requestPointerLock());
+    document.addEventListener('mousemove', e => {
+        if (document.pointerLockElement === renderer.domElement) {
+            targetYaw -= e.movementX * 0.0028;
+            targetPitch -= e.movementY * 0.0028;
+            targetPitch = Math.max(-1.2, Math.min(1.2, targetPitch));
+        }
+    });
+
+    window.addEventListener('keydown', e => {
+        const k = e.key.toLowerCase();
+
+        if (k === 'w') move.forward = true;
+        if (k === 's') move.backward = true;
+        if (k === 'a') move.left = true;
+        if (k === 'd') move.right = true;
+        if (k === ' ') { spaceHeld = true; e.preventDefault(); }
+        if (k === 'f') { flapPressed = true; e.preventDefault(); }
+        if (k === 'j') { jetPressed = true; e.preventDefault(); }
+        if (k === 'c') {
+            if (craftingOpen) closeCrafting();
+            else openCrafting();
+        }
+        if (e.key >= '1' && e.key <= '9') {
+            selectedHotbar = parseInt(e.key) - 1;
+            renderHotbar();
+            renderFullInventory();
+        }
+        if (k === 'b') {
+            const screen = document.getElementById('inventoryScreen');
+            screen.style.display = screen.style.display === 'none' ? 'block' : 'none';
+            if (screen.style.display === 'block') renderFullInventory();
+        }
+        if (k === 'p') {                    // Changed from 'f' to 'p'
+            playerWingFold = (playerWingFold + 1) % 3;
+
+            let status = "";
+            let color = "#88ffff";
+
+            if (playerWingFold === 0) status = "🪶 WINGS NORMAL - GOOD GLIDE";
+            else if (playerWingFold === 1) {
+                status = "🪶 WINGS FOLDED - FAST DIVE";
+                color = "#ffdd88";
+            }
+            else if (playerWingFold === 2) {
+                status = "🪶 FULL DIVE MODE - MAX SPEED";
+                color = "#ff8888";
+            }
+
+            const warning = document.getElementById('takeoffWarning');
+            warning.innerHTML = status;
+            warning.style.opacity = '1';
+            warning.style.color = color;
+            setTimeout(() => warning.style.opacity = '0', 1800);
+        }
+
+        if (k === 'k') {
+            tryApplyEnchantment();
+            keys['k'] = false;   // prevent holding
+        }
+
+        // === KEYS OBJECT FOR CHECKING E ===
+        keys[k] = true;
+    });
+
+    window.addEventListener('keyup', e => {
+        const k = e.key.toLowerCase();
+        if (k === 'w') move.forward = false;
+        if (k === 's') move.backward = false;
+        if (k === 'a') move.left = false;
+        if (k === 'd') move.right = false;
+        if (k === ' ') { spaceHeld = false; e.preventDefault(); }
+        if (k === 'f') { flapPressed = false; e.preventDefault(); }
+        if (k === 'j') { jetPressed = false; e.preventDefault(); }
+        keys[k] = false;
+    });
+        // Left click to ram/attack hunters
+    renderer.domElement.addEventListener('mousedown', (e) => {
+        if (document.pointerLockElement === renderer.domElement && e.button === 0) {
+            keys['click'] = true;
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+        function animate() {
+        const delta = Math.min(clock.getDelta(), 0.033);
+        const time = performance.now() * 0.002;
+
+        yaw = THREE.MathUtils.lerp(yaw, targetYaw, 0.22);
+        pitch = THREE.MathUtils.lerp(pitch, targetPitch, 0.22);
+        camera.rotation.order = 'YXZ';
+        camera.rotation.y = yaw;
+        camera.rotation.x = pitch;
+
+        updatePhysics(delta);
+        updateHealth(delta);
+        updateDayNight(delta);
+        updateTrees(delta);           // ← important
+        updateActiveTreeHP();         // ← important
+        updateHunters(delta);
+        updateOres(delta);
+        updateStones(delta);
+        updateBloodParticles(delta);
+        updatePlanes(delta);
+        updateBombs(delta);
+        checkChestInteraction();
+        checkAetherAltitude();
+        updateGlideRatioDisplay();     // ← ADD THIS
+        updateScreenShake();           // ← ADD THIS
+        updateWaterParticles(delta);
+        updateChunks();
+
+
+        if (waterMesh && waterMesh.geometry) {
+            const pos = waterMesh.geometry.attributes.position;
+            if (pos) {
+                for (let i = 0; i < pos.count; i++) {
+                    const x = pos.getX(i), z = pos.getZ(i);
+                    pos.setY(i, Math.sin(x * 0.012 + time * 2.2) * 0.5 + Math.cos(z * 0.014 + time * 1.7) * 0.5);
+                }
+                pos.needsUpdate = true;
+            }
+        }
+        if (cloudsGroup) {
+            cloudsGroup.position.x = Math.sin(time * 0.012) * 60;
+            cloudsGroup.position.z = Math.cos(time * 0.01) * 50;
+        }
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+    }
+
+    init();
+    animate();
+
+</script>
+</body>
+</html>
